@@ -5,7 +5,7 @@ import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
 } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth, OWNER_EMAIL } from '../firebase';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -73,6 +73,12 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
     }
 
     if (isRegister) {
+      if (email.trim().toLowerCase() !== OWNER_EMAIL) {
+        setErrorMsg(
+          'Este cadastro é só para o proprietário da loja. Atendentes são cadastrados pelo administrador dentro do painel.'
+        );
+        return;
+      }
       if (password.length < 6) {
         setErrorMsg('A senha deve ter pelo menos 6 caracteres.');
         return;
@@ -131,12 +137,12 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
           </div>
           <div>
             <h2 id="admin-login-title" className="font-hand text-2xl font-bold text-[#3A150B]">
-              {isRegister ? 'Criar Cadastro' : 'Acesso Administrativo'}
+              {isRegister ? 'Primeiro acesso do proprietário' : 'Acesso ao Painel'}
             </h2>
             <p className="text-xs text-[#3A150B]/65">
               {isRegister
-                ? 'Cadastre seu e-mail e senha de administrador'
-                : 'Entre para gerenciar produtos e pedidos online'}
+                ? 'Crie a senha da conta do proprietário da loja'
+                : 'Entre para receber e gerenciar os pedidos online'}
             </p>
           </div>
         </div>
@@ -251,16 +257,23 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             )}
           </button>
 
-          <p className="text-center text-xs text-[#3A150B]/70">
-            {isRegister ? 'Já tem cadastro?' : 'Ainda não tem cadastro?'}{' '}
-            <button
-              type="button"
-              onClick={() => switchMode(isRegister ? 'login' : 'register')}
-              className="font-semibold text-[#D81B60] underline-offset-2 hover:underline"
-            >
-              {isRegister ? 'Entrar' : 'Cadastre-se'}
-            </button>
-          </p>
+          <div className="space-y-1.5 text-center text-xs text-[#3A150B]/70">
+            {!isRegister && (
+              <p>
+                Atendente? Peça ao administrador da loja para cadastrar seu e-mail e senha.
+              </p>
+            )}
+            <p>
+              {isRegister ? 'Já criou a conta?' : 'É o proprietário e ainda não criou a conta?'}{' '}
+              <button
+                type="button"
+                onClick={() => switchMode(isRegister ? 'login' : 'register')}
+                className="font-semibold text-[#D81B60] underline-offset-2 hover:underline"
+              >
+                {isRegister ? 'Entrar' : 'Primeiro acesso'}
+              </button>
+            </p>
+          </div>
         </form>
       </div>
     </div>

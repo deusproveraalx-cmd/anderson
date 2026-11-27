@@ -27,11 +27,30 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email_verified == true;
     }
 
+    function isOwner() {
+      return isVerifiedUser() && request.auth.token.email == 'deusproveraalx@gmail.com';
+    }
+
+    // Atendente cadastrado pelo proprietário e com acesso ativo
+    function isStaff() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.ativo == true;
+    }
+
+    // Pode ver e atualizar pedidos
     function isAdmin() {
-      return isVerifiedUser() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        request.auth.token.email == 'deusproveraalx@gmail.com'
-      );
+      return isOwner() || isStaff();
+    }
+
+    function isValidStaff(data) {
+      return data.keys().hasOnly(['nome', 'email', 'ativo', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasAll(['nome', 'email', 'ativo', 'createdBy', 'createdAt'])
+        && data.nome is string && data.nome.size() >= 2 && data.nome.size() <= 120
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 200
+        && data.ativo is bool
+        && data.createdBy is string && data.createdBy.size() <= 128
+        && data.createdAt is timestamp;
     }
 
     function isValidOptionalString(data, key, maxLen) {
@@ -124,14 +143,14 @@ service cloud.firestore {
       allow get: if isValidId(produtoId);
       allow list: if true;
 
-      allow create: if isAdmin()
+      allow create: if isOwner()
         && isValidId(produtoId)
         && isValidProduto(incoming())
         && incoming().createdBy == request.auth.uid
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
 
-      allow update: if isAdmin()
+      allow update: if isOwner()
         && isValidId(produtoId)
         && isValidProduto(incoming())
         && incoming().createdBy == existing().createdBy
@@ -148,7 +167,7 @@ service cloud.firestore {
           'updatedAt'
         ]);
 
-      allow delete: if isAdmin() && isValidId(produtoId);
+      allow delete: if isOwner() && isValidId(produtoId);
     }
 
     // Customer orders: validated public creation, admin-only read/update/delete (PII protected)
@@ -178,10 +197,25 @@ service cloud.firestore {
       allow delete: if isAdmin() && isValidId(pedidoId);
     }
 
-    // Admin registry: strictly readable only by the admin themselves (no list enumeration)
+    // Equipe: somente o proprietário cadastra e ativa/desativa atendentes.
+    // Cada atendente pode ler apenas o próprio documento.
     match /admins/{adminId} {
-      allow get: if isVerifiedUser() && isValidId(adminId) && request.auth.uid == adminId;
-      allow list, create, update, delete: if false;
+      allow get: if isValidId(adminId) && (isOwner() || (isSignedIn() && request.auth.uid == adminId));
+      allow list: if isOwner();
+
+      allow create: if isOwner()
+        && isValidId(adminId)
+        && isValidStaff(incoming())
+        && incoming().ativo == true
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time;
+
+      allow update: if isOwner()
+        && isValidId(adminId)
+        && isValidStaff(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['ativo', 'updatedAt']);
+
+      allow delete: if false;
     }
   }
 }

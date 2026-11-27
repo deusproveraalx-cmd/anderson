@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseAppletConfig from '../firebase-applet-config.json';
@@ -19,7 +19,19 @@ export const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
+export const OWNER_EMAIL = 'deusproveraalx@gmail.com';
+
 export const auth = getAuth(app);
+
+/**
+ * Instância de Auth separada, usada só para criar contas de atendentes.
+ * Assim o proprietário continua logado ao cadastrar outra pessoa.
+ */
+export function getStaffRegistrationAuth() {
+  const name = 'staff-registration';
+  const existing = getApps().find((a) => a.name === name);
+  return getAuth(existing ?? initializeApp(firebaseConfig, name));
+}
 export const db = getFirestore(app, firebaseAppletConfig.firestoreDatabaseId);
 
 export enum OperationType {
