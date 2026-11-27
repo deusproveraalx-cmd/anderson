@@ -34,6 +34,12 @@ service cloud.firestore {
       );
     }
 
+    function isOrderOperator() {
+      return isVerifiedUser()
+        && exists(/databases/$(database)/documents/atendentes/$(request.auth.uid))
+        && get(/databases/$(database)/documents/atendentes/$(request.auth.uid)).data.ativo == true;
+    }
+
     function isValidOptionalString(data, key, maxLen) {
       return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
     }
@@ -57,7 +63,7 @@ service cloud.firestore {
         && (data.preco is int || data.preco is float) && data.preco > 0 && data.preco <= 100000
         && data.imagemUrl is string && data.imagemUrl.size() >= 1 && data.imagemUrl.size() <= 450000
         && isValidOptionalString(data, 'categoria', 60)
-        && isValidOptionalString(data, 'porcao', 80)
+        && isValidOptionalString(data, 'porcao', 120)
         && isValidOptionalString(data, 'storagePath', 300)
         && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
         && data.createdAt is timestamp
@@ -119,6 +125,18 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    function isValidAtendente(data) {
+      return data.keys().hasAll(['nome', 'email', 'role', 'ativo', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['nome', 'email', 'role', 'ativo', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.nome is string && data.nome.size() >= 2 && data.nome.size() <= 120
+        && data.email is string && data.email.size() >= 5 && data.email.size() <= 160
+        && data.role == 'atendente'
+        && data.ativo is bool
+        && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
     // Storefront public catalog: public read, admin-only write
     match /produtos/{produtoId} {
       allow get: if isValidId(produtoId);
@@ -151,10 +169,10 @@ service cloud.firestore {
       allow delete: if isAdmin() && isValidId(produtoId);
     }
 
-    // Customer orders: validated public creation, admin-only read/update/delete (PII protected)
+    // Customer orders: validated public creation, admin & active order-operators read/update, admin-only delete
     match /pedidos/{pedidoId} {
-      allow get: if isAdmin() && isValidId(pedidoId);
-      allow list: if isAdmin();
+      allow get: if (isAdmin() || isOrderOperator()) && isValidId(pedidoId);
+      allow list: if isAdmin() || isOrderOperator();
 
       allow create: if isValidId(pedidoId)
         && isValidPedido(incoming())
@@ -163,7 +181,7 @@ service cloud.firestore {
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
 
-      allow update: if isAdmin()
+      allow update: if (isAdmin() || isOrderOperator())
         && isValidId(pedidoId)
         && isValidPedido(incoming())
         && incoming().createdAt == existing().createdAt
@@ -176,6 +194,29 @@ service cloud.firestore {
         );
 
       allow delete: if isAdmin() && isValidId(pedidoId);
+    }
+
+    // Order-panel staff accounts registered by the admin
+    match /atendentes/{atendenteId} {
+      allow get: if isAdmin() || (isSignedIn() && isValidId(atendenteId) && request.auth.uid == atendenteId);
+      allow list: if isAdmin();
+
+      allow create: if isAdmin()
+        && isValidId(atendenteId)
+        && isValidAtendente(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidId(atendenteId)
+        && isValidAtendente(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['nome', 'ativo', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidId(atendenteId);
     }
 
     // Admin registry: strictly readable only by the admin themselves (no list enumeration)

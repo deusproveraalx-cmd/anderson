@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseAppletConfig from '../firebase-applet-config.json';
@@ -17,10 +17,17 @@ export const firebaseConfig = {
   appId: firebaseAppletConfig.appId,
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().find((a) => a.name === '[DEFAULT]') ?? initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseAppletConfig.firestoreDatabaseId);
+
+export function getSecondaryAuth() {
+  const secondaryApp =
+    getApps().find((a) => a.name === 'staff-provisioner') ??
+    initializeApp(firebaseConfig, 'staff-provisioner');
+  return getAuth(secondaryApp);
+}
 
 export enum OperationType {
   CREATE = 'create',

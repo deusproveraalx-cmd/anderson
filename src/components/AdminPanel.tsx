@@ -22,11 +22,24 @@ import {
   MapPin,
   Store,
   ExternalLink,
+  Users,
+  UserPlus,
+  Eye,
+  EyeOff,
+  Power,
 } from 'lucide-react';
-import { User, signOut, sendEmailVerification } from 'firebase/auth';
+import {
+  User,
+  signOut,
+  sendEmailVerification,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from 'firebase/auth';
 import {
   collection,
   addDoc,
+  setDoc,
+  getDoc,
   updateDoc,
   deleteDoc,
   doc,
@@ -35,23 +48,39 @@ import {
   query,
   serverTimestamp,
 } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from '../firebase';
-import { Order, OrderItem, OrderStatus, Product, ProductCategory } from '../data/products';
+import {
+  auth,
+  db,
+  getSecondaryAuth,
+  handleFirestoreError,
+  OperationType,
+} from '../firebase';
+import {
+  DEFAULT_CATALOG_PRODUCTS,
+  Order,
+  OrderItem,
+  OrderStatus,
+  Product,
+  ProductCategory,
+  StaffUser,
+} from '../data/products';
 import { formatBRL } from './CartDrawer';
 
 interface AdminPanelProps {
   user: User;
+  role: 'admin' | 'atendente';
   products: Product[];
   onRequestPrintOrder: (order: Order) => void;
 }
 
-type AdminTab = 'produtos' | 'pedidos';
+type AdminTab = 'pedidos' | 'produtos' | 'equipe';
 type OrderFilter = 'todos' | OrderStatus;
 
 const CATEGORY_OPTIONS: Exclude<ProductCategory, 'Todos'>[] = [
   'Bolos',
   'Doces',
-  'Cupcakes & Potes',
+  'Taças',
+  'Combos para Festas',
 ];
 
 const MAX_IMAGE_WIDTH = 600;
@@ -124,6 +153,7 @@ function buildCustomerWhatsappHref(order: Order): string {
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   user,
+  role,
   products,
   onRequestPrintOrder,
 }) => {
@@ -155,6 +185,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [orderActionMessage, setOrderActionMessage] = useState<string | null>(null);
 
+  // Staff (Atendentes) management states (Admin only)
+  const [staffList, setStaffList] = useState<StaffUser[]>([]);
+  const [isLoadingStaff, setIsLoadingStaff] = useState(true);
+  const [staffNome, setStaffNome] = useState('');
+  const [staffEmail, setStaffEmail] = useState('');
+  const [staffPassword, setStaffPassword] = useState('');
+  const [showStaffPassword, setShowStaffPassword] = useState(false);
+  const [isSavingStaff, setIsSavingStaff] = useState(false);
+  const [staffMessage, setStaffMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [togglingStaffId, setTogglingStaffId] = useState<string | null>(null);
+  const [confirmDeleteStaffId, setConfirmDeleteStaffId] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const voiceAudioUrlRef = useRef<string | null>(null);
   const voiceFetchPromiseRef = useRef<Promise<string | null> | null>(null);
@@ -167,6 +209,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   useEffect(() => {
     autoPrintEnabledRef.current = autoPrintEnabled;
   }, [autoPrintEnabled]);
+
+  useEffect(() => {
+    if (role !== 'admin' && activeTab !== 'pedidos') {
+      setActiveTab('pedidos');
+    }
+  }, [role, activeTab]);
 
   const loadCommercialVoiceUrl = useCallback(async (): Promise<string | null> => {
     if (voiceAudioUrlRef.current) {
@@ -443,6 +491,108 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     return () => unsubscribeOrders();
   }, [user.emailVerified, playOrderBellChime, triggerPrintReceipt]);
 
+  // Real-time onSnapshot listener on Firestore collection 'atendentes' (Admin only)
+  useEffect(() => {
+    if (role !== 'admin' || !user.emailVerified) {
+      setIsLoadingStaff(false);
+      return;
+    }
+
+    const staffQuery = query(collection(db, 'atendentes'), orderBy('createdAt', 'desc'));
+    const unsubscribeStaff = onSnapshot(
+      staffQuery,
+      (snapshot) => {
+        const parsedStaff: StaffUser[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          const createdAtTimestamp = data.createdAt as { toMillis?: () => number } | undefined;
+          const createdAtMs =
+            createdAtTimestamp && typeof createdAtTimestamp.toMillis === 'function'
+              ? createdAtTimestamp.toMillis()
+              : Date.now();
+
+          return {
+            id: docSnap.id,
+            nome: String(data.nome || 'Atendente'),
+            email: String(data.email || ''),
+            ativo: data.ativo !== false,
+            createdAtMs,
+          };
+        });
+        setStaffList(parsedStaff);
+        setIsLoadingStaff(false);
+      },
+      (error) => {
+        setIsLoadingStaff(false);
+        try {
+          handleFirestoreError(error, OperationType.LIST, 'atendentes');
+        } catch (wrapped) {
+          setFatalError(wrapped as Error);
+        }
+      }
+    );
+
+    return () => unsubscribeStaff();
+  }, [role, user.emailVerified]);
+
+  // Ensure default party combos and signature products (COMBO 1-4, Taça Tropical) are synced to Firestore once when verified admin signs in
+  useEffect(() => {
+    if (role !== 'admin' || !user.emailVerified) return;
+
+    let cancelled = false;
+    void (async () => {
+      for (const combo of DEFAULT_CATALOG_PRODUCTS) {
+        if (cancelled) return;
+        const storageKey = `delicia_combo_synced_${combo.id}`;
+        const legacyDeleted =
+          combo.id === 'combo-1' &&
+          typeof window !== 'undefined' &&
+          window.localStorage.getItem('delicia_combo1_synced') === 'deleted';
+        const alreadyHandled =
+          typeof window !== 'undefined' && Boolean(window.localStorage.getItem(storageKey));
+
+        if (legacyDeleted || alreadyHandled) {
+          continue;
+        }
+
+        try {
+          const comboRef = doc(db, 'produtos', combo.id);
+          const existingSnap = await getDoc(comboRef);
+          if (cancelled) return;
+
+          if (!existingSnap.exists()) {
+            await setDoc(comboRef, {
+              nome: combo.name,
+              descricao: combo.description,
+              preco: combo.price,
+              imagemUrl: combo.image,
+              categoria: combo.category,
+              porcao: combo.portion,
+              createdBy: user.uid,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+          }
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(storageKey, '1');
+          }
+        } catch (err) {
+          if (!cancelled) {
+            try {
+              handleFirestoreError(err, OperationType.WRITE, `produtos/${combo.id}`);
+            } catch (wrapped) {
+              setFatalError(wrapped as Error);
+              return;
+            }
+          }
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [role, user.emailVerified, user.uid]);
+
   if (fatalError) {
     throw fatalError;
   }
@@ -593,7 +743,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           updatedAt: serverTimestamp(),
         };
         if (trimmedPorcao) {
-          updatePayload.porcao = trimmedPorcao.slice(0, 80);
+          updatePayload.porcao = trimmedPorcao.slice(0, 120);
         }
 
         try {
@@ -619,7 +769,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           updatedAt: serverTimestamp(),
         };
         if (trimmedPorcao) {
-          createPayload.porcao = trimmedPorcao.slice(0, 80);
+          createPayload.porcao = trimmedPorcao.slice(0, 120);
         }
 
         try {
@@ -653,11 +803,184 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }
     }
 
+    if (
+      DEFAULT_CATALOG_PRODUCTS.some((c) => c.id === product.id) &&
+      typeof window !== 'undefined'
+    ) {
+      window.localStorage.setItem(`delicia_combo_synced_${product.id}`, 'deleted');
+      if (product.id === 'combo-1') {
+        window.localStorage.setItem('delicia_combo1_synced', 'deleted');
+      }
+    }
     if (editingProduct?.id === product.id) {
       resetForm();
     }
     setConfirmDeleteId(null);
     setStatusMessage({ type: 'success', text: `"${product.name}" foi excluído da vitrine.` });
+  };
+
+  const handleCreateStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (role !== 'admin') return;
+    setStaffMessage(null);
+
+    const trimmedNome = staffNome.trim();
+    const trimmedEmail = staffEmail.trim().toLowerCase();
+
+    if (trimmedNome.length < 2 || trimmedNome.length > 120) {
+      setStaffMessage({ type: 'error', text: 'Informe um nome com 2 a 120 caracteres.' });
+      return;
+    }
+    if (trimmedEmail.length < 5 || trimmedEmail.length > 160 || !trimmedEmail.includes('@')) {
+      setStaffMessage({ type: 'error', text: 'Informe um e-mail válido.' });
+      return;
+    }
+    if (staffPassword.length < 6) {
+      setStaffMessage({ type: 'error', text: 'A senha de acesso deve ter pelo menos 6 caracteres.' });
+      return;
+    }
+    if (user.email && trimmedEmail === user.email.toLowerCase()) {
+      setStaffMessage({ type: 'error', text: 'Este e-mail já pertence ao administrador conectado.' });
+      return;
+    }
+
+    setIsSavingStaff(true);
+    const secondaryAuth = getSecondaryAuth();
+    try {
+      let targetUid = '';
+      let verificationNotice = '';
+
+      try {
+        const cred = await createUserWithEmailAndPassword(secondaryAuth, trimmedEmail, staffPassword);
+        targetUid = cred.user.uid;
+        try {
+          await sendEmailVerification(cred.user);
+          verificationNotice = ' Um e-mail de verificação foi enviado para a caixa de entrada da pessoa.';
+        } catch {
+          // Ignore verification email rate-limits cleanly
+        }
+      } catch (authErr: unknown) {
+        const code =
+          typeof authErr === 'object' && authErr !== null && 'code' in authErr
+            ? String((authErr as { code: string }).code)
+            : '';
+
+        if (code === 'auth/email-already-in-use') {
+          try {
+            const existingCred = await signInWithEmailAndPassword(
+              secondaryAuth,
+              trimmedEmail,
+              staffPassword
+            );
+            targetUid = existingCred.user.uid;
+            if (!existingCred.user.emailVerified) {
+              try {
+                await sendEmailVerification(existingCred.user);
+                verificationNotice =
+                  ' Um e-mail de verificação foi enviado para a caixa de entrada da pessoa.';
+              } catch {
+                // Ignore rate limit
+              }
+            }
+          } catch {
+            setStaffMessage({
+              type: 'error',
+              text: 'Este e-mail já possui uma conta no Firebase Auth com outra senha. Use a senha atual da conta ou cadastre outro e-mail.',
+            });
+            return;
+          }
+        } else if (code === 'auth/invalid-email') {
+          setStaffMessage({ type: 'error', text: 'O formato do e-mail informado é inválido.' });
+          return;
+        } else if (code === 'auth/weak-password') {
+          setStaffMessage({ type: 'error', text: 'Escolha uma senha mais forte (mínimo 6 caracteres).' });
+          return;
+        } else {
+          setStaffMessage({
+            type: 'error',
+            text: 'Não foi possível criar a conta de acesso agora. Tente novamente.',
+          });
+          return;
+        }
+      }
+
+      if (!targetUid) return;
+
+      try {
+        await setDoc(doc(db, 'atendentes', targetUid), {
+          nome: trimmedNome,
+          email: trimmedEmail,
+          role: 'atendente',
+          ativo: true,
+          createdBy: user.uid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        try {
+          handleFirestoreError(err, OperationType.CREATE, `atendentes/${targetUid}`);
+        } catch (wrapped) {
+          setFatalError(wrapped as Error);
+          return;
+        }
+      }
+
+      setStaffNome('');
+      setStaffEmail('');
+      setStaffPassword('');
+      setStaffMessage({
+        type: 'success',
+        text: `${trimmedNome} cadastrado com sucesso para acessar o painel de pedidos!${verificationNotice}`,
+      });
+    } finally {
+      await signOut(secondaryAuth).catch(() => undefined);
+      setIsSavingStaff(false);
+    }
+  };
+
+  const handleToggleStaffActive = async (staff: StaffUser) => {
+    if (role !== 'admin') return;
+    setTogglingStaffId(staff.id);
+    setStaffMessage(null);
+    try {
+      await updateDoc(doc(db, 'atendentes', staff.id), {
+        ativo: !staff.ativo,
+        updatedAt: serverTimestamp(),
+      });
+      setStaffMessage({
+        type: 'success',
+        text: !staff.ativo
+          ? `Acesso de ${staff.nome} reativado!`
+          : `Acesso de ${staff.nome} desativado.`,
+      });
+    } catch (err) {
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, `atendentes/${staff.id}`);
+      } catch (wrapped) {
+        setFatalError(wrapped as Error);
+      }
+    } finally {
+      setTogglingStaffId(null);
+    }
+  };
+
+  const handleDeleteStaff = async (staff: StaffUser) => {
+    if (role !== 'admin') return;
+    try {
+      await deleteDoc(doc(db, 'atendentes', staff.id));
+    } catch (err) {
+      try {
+        handleFirestoreError(err, OperationType.DELETE, `atendentes/${staff.id}`);
+      } catch (wrapped) {
+        setFatalError(wrapped as Error);
+        return;
+      }
+    }
+    setConfirmDeleteStaffId(null);
+    setStaffMessage({
+      type: 'success',
+      text: `Acesso de ${staff.nome} removido do painel de pedidos.`,
+    });
   };
 
   const handleSendVerification = async () => {
@@ -701,9 +1024,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <ShieldCheck className="h-5 w-5" aria-hidden="true" />
               </div>
               <div>
-                <h1 className="font-display text-lg font-bold leading-tight text-[#3A150B] sm:text-xl">
-                  Painel Administrativo
-                </h1>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="font-display text-lg font-bold leading-tight text-[#3A150B] sm:text-xl">
+                    {role === 'admin' ? 'Painel Administrativo' : 'Painel de Pedidos'}
+                  </h1>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                      role === 'admin'
+                        ? 'bg-[#FCEEF2] text-[#D81B60]'
+                        : 'bg-[#DCFCE7] text-[#15803D]'
+                    }`}
+                  >
+                    {role === 'admin' ? 'Administrador' : 'Equipe de Pedidos'}
+                  </span>
+                </div>
                 <p className="text-[11px] text-[#3A150B]/65">
                   Conectado como <strong>{user.email}</strong>
                 </p>
@@ -711,7 +1045,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
 
-          {/* 2. Tabs: Pedidos / Notificações | Gerenciar Produtos */}
+          {/* 2. Tabs: Pedidos / Notificações | Gerenciar Produtos (admin) | Equipe (admin) */}
           <nav
             aria-label="Seções do painel administrativo"
             className="flex flex-wrap items-center gap-2"
@@ -740,18 +1074,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               )}
             </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('produtos')}
-              className={`inline-flex min-h-[40px] items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors sm:text-sm ${
-                activeTab === 'produtos'
-                  ? 'bg-[#D81B60] text-white shadow-sm'
-                  : 'border border-[#3A150B]/15 bg-[#FFF8FB] text-[#3A150B] hover:bg-[#FCEEF2]'
-              }`}
-            >
-              <Package className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>Gerenciar Produtos ({products.length})</span>
-            </button>
+            {role === 'admin' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('produtos')}
+                  className={`inline-flex min-h-[40px] items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors sm:text-sm ${
+                    activeTab === 'produtos'
+                      ? 'bg-[#D81B60] text-white shadow-sm'
+                      : 'border border-[#3A150B]/15 bg-[#FFF8FB] text-[#3A150B] hover:bg-[#FCEEF2]'
+                  }`}
+                >
+                  <Package className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Gerenciar Produtos ({products.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('equipe')}
+                  className={`inline-flex min-h-[40px] items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors sm:text-sm ${
+                    activeTab === 'equipe'
+                      ? 'bg-[#D81B60] text-white shadow-sm'
+                      : 'border border-[#3A150B]/15 bg-[#FFF8FB] text-[#3A150B] hover:bg-[#FCEEF2]'
+                  }`}
+                >
+                  <Users className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Equipe / Pedidos ({staffList.length})</span>
+                </button>
+              </>
+            )}
           </nav>
 
           {/* 3. Actions: Ver Loja (new tab) + Sair (Logout) */}
@@ -788,7 +1139,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div>
                   <p className="font-bold">E-mail ainda não verificado</p>
                   <p className="mt-0.5">
-                    Para acessar os pedidos e gravar produtos com segurança, verifique seu e-mail{' '}
+                    {role === 'admin'
+                      ? 'Para acessar os pedidos, produtos e equipe com segurança, verifique seu e-mail '
+                      : 'Para visualizar e atender os pedidos em tempo real com segurança, verifique seu e-mail '}
                     <strong>{user.email}</strong> e depois recarregue.
                   </p>
                 </div>
@@ -990,7 +1343,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               {/* Orders List */}
               {!user.emailVerified ? (
                 <div className="rounded-2xl border border-[#3A150B]/10 bg-[#FFF8FB] p-8 text-center text-sm text-[#3A150B]/75">
-                  Verifique seu e-mail de administrador acima para visualizar os pedidos em tempo real.
+                  Verifique seu e-mail acima para visualizar os pedidos em tempo real.
                 </div>
               ) : isLoadingOrders ? (
                 <div className="flex items-center justify-center gap-2.5 rounded-2xl border border-[#3A150B]/10 bg-[#FFF8FB] p-10 text-sm font-medium text-[#3A150B]/75">
@@ -1204,24 +1557,40 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           )}
 
-          {/* TAB 2: PRODUCTS MANAGEMENT */}
-          {activeTab === 'produtos' && (
+          {/* TAB 2: PRODUCTS MANAGEMENT (Admin only) */}
+          {role === 'admin' && activeTab === 'produtos' && (
             <>
               <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-base font-bold text-[#3A150B]">
-                    {editingProduct ? `Editando: ${editingProduct.name}` : 'Adicionar Novo Produto'}
+                    {editingProduct
+                      ? `Editando: ${editingProduct.name}`
+                      : categoria === 'Combos para Festas'
+                        ? 'Adicionar Novo Combo para Festa'
+                        : 'Adicionar Novo Produto'}
                   </h3>
-                  {editingProduct && (
-                    <button
-                      type="button"
-                      onClick={resetForm}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-[#D81B60] hover:underline"
-                    >
-                      <X className="h-3.5 w-3.5" aria-hidden="true" />
-                      Cancelar edição
-                    </button>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!editingProduct && categoria !== 'Combos para Festas' && (
+                      <button
+                        type="button"
+                        onClick={() => setCategoria('Combos para Festas')}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[#D81B60]/30 bg-[#FFF8FB] px-3 py-1.5 text-xs font-semibold text-[#D81B60] transition-colors hover:bg-[#FCEEF2]"
+                      >
+                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                        Cadastrar Combo para Festa
+                      </button>
+                    )}
+                    {editingProduct && (
+                      <button
+                        type="button"
+                        onClick={resetForm}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-[#D81B60] hover:underline"
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                        Cancelar edição
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid gap-5 lg:grid-cols-12">
@@ -1300,7 +1669,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label htmlFor="admin-prod-name" className="block text-xs font-semibold text-[#3A150B]">
-                          Nome do produto
+                          {categoria === 'Combos para Festas' ? 'Nome do combo para festa' : 'Nome do produto'}
                         </label>
                         <input
                           id="admin-prod-name"
@@ -1308,7 +1677,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           value={nome}
                           onChange={(e) => setNome(e.target.value)}
                           maxLength={120}
-                          placeholder="Ex.: Bolo de Chocolate com Morangos"
+                          placeholder={
+                            categoria === 'Combos para Festas'
+                              ? 'Ex.: Combo Festa Completa 20 Pessoas'
+                              : 'Ex.: Bolo de Chocolate com Morangos'
+                          }
                           className="mt-1 w-full rounded-xl border border-[#3A150B]/15 bg-white px-3 py-2.5 text-sm text-[#3A150B] focus:border-[#D81B60] focus:outline-none"
                         />
                       </div>
@@ -1324,7 +1697,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           min="0.01"
                           value={preco}
                           onChange={(e) => setPreco(e.target.value)}
-                          placeholder="165.00"
+                          placeholder={categoria === 'Combos para Festas' ? '280.00' : '165.00'}
                           className="mt-1 w-full rounded-xl border border-[#3A150B]/15 bg-white px-3 py-2.5 text-sm tabular-nums text-[#3A150B] focus:border-[#D81B60] focus:outline-none"
                         />
                       </div>
@@ -1351,15 +1724,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                       <div>
                         <label htmlFor="admin-prod-portion" className="block text-xs font-semibold text-[#3A150B]">
-                          Peso / Porção (opcional)
+                          {categoria === 'Combos para Festas'
+                            ? 'Itens inclusos / Quantas pessoas serve (opcional)'
+                            : 'Peso / Porção (opcional)'}
                         </label>
                         <input
                           id="admin-prod-portion"
                           type="text"
                           value={porcao}
                           onChange={(e) => setPorcao(e.target.value)}
-                          maxLength={80}
-                          placeholder="Ex.: 2 kg · Serve 18 fatias"
+                          maxLength={120}
+                          placeholder={
+                            categoria === 'Combos para Festas'
+                              ? 'Ex.: 1 Bolo 2kg + 100 Docinhos + Salgados'
+                              : categoria === 'Taças'
+                                ? 'Ex.: 1,250L · Recheios de Frutas'
+                                : 'Ex.: 2 kg · Serve 18 fatias'
+                          }
                           className="mt-1 w-full rounded-xl border border-[#3A150B]/15 bg-white px-3 py-2.5 text-sm text-[#3A150B] focus:border-[#D81B60] focus:outline-none"
                         />
                       </div>
@@ -1375,7 +1756,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         value={descricao}
                         onChange={(e) => setDescricao(e.target.value)}
                         maxLength={600}
-                        placeholder="Descreva massa, recheio, cobertura e diferenciais artesanais..."
+                        placeholder={
+                          categoria === 'Combos para Festas'
+                            ? 'Detalhe sabores dos doces, massa/recheio do bolo e se inclui topo ou entrega...'
+                            : 'Descreva massa, recheio, cobertura e diferenciais artesanais...'
+                        }
                         className="mt-1 w-full rounded-xl border border-[#3A150B]/15 bg-white px-3 py-2.5 text-sm text-[#3A150B] focus:border-[#D81B60] focus:outline-none"
                       />
                     </div>
@@ -1499,6 +1884,219 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 )}
               </div>
             </>
+          )}
+
+          {/* TAB 3: ORDER STAFF MANAGEMENT (Admin only) */}
+          {role === 'admin' && activeTab === 'equipe' && (
+            <div className="space-y-6">
+              <div className="rounded-2xl border border-[#D81B60]/20 bg-[#FFF8FB] p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FCEEF2] text-[#D81B60]">
+                    <UserPlus className="h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-[#3A150B]">
+                      Cadastrar Pessoa para o Painel de Pedidos
+                    </h3>
+                    <p className="mt-0.5 text-xs text-[#3A150B]/75">
+                      As pessoas cadastradas aqui entram pelo botão <strong>Admin</strong> no rodapé usando o e-mail e senha definidos abaixo. Elas acessam <strong>exclusivamente o painel de Pedidos / Notificações</strong> (sem acesso aos produtos ou à equipe).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {!user.emailVerified ? (
+                <div className="rounded-2xl border border-[#3A150B]/10 bg-[#FFF8FB] p-8 text-center text-sm text-[#3A150B]/75">
+                  Verifique seu e-mail de administrador acima para cadastrar e gerenciar pessoas da equipe.
+                </div>
+              ) : (
+                <>
+                  <form onSubmit={handleCreateStaff} className="space-y-4 rounded-2xl border border-[#3A150B]/10 bg-[#FFFDFD] p-5">
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div>
+                        <label htmlFor="staff-nome" className="block text-xs font-semibold text-[#3A150B]">
+                          Nome da pessoa
+                        </label>
+                        <input
+                          id="staff-nome"
+                          type="text"
+                          value={staffNome}
+                          onChange={(e) => setStaffNome(e.target.value)}
+                          maxLength={120}
+                          placeholder="Ex.: Maria Silva"
+                          className="mt-1 w-full rounded-xl border border-[#3A150B]/15 bg-white px-3 py-2.5 text-sm text-[#3A150B] focus:border-[#D81B60] focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="staff-email" className="block text-xs font-semibold text-[#3A150B]">
+                          E-mail de acesso
+                        </label>
+                        <input
+                          id="staff-email"
+                          type="email"
+                          value={staffEmail}
+                          onChange={(e) => setStaffEmail(e.target.value)}
+                          maxLength={160}
+                          placeholder="atendente@exemplo.com"
+                          className="mt-1 w-full rounded-xl border border-[#3A150B]/15 bg-white px-3 py-2.5 text-sm text-[#3A150B] focus:border-[#D81B60] focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="staff-password" className="block text-xs font-semibold text-[#3A150B]">
+                          Senha de acesso (mín. 6 caracteres)
+                        </label>
+                        <div className="relative mt-1">
+                          <input
+                            id="staff-password"
+                            type={showStaffPassword ? 'text' : 'password'}
+                            value={staffPassword}
+                            onChange={(e) => setStaffPassword(e.target.value)}
+                            placeholder="••••••"
+                            className="w-full rounded-xl border border-[#3A150B]/15 bg-white py-2.5 pl-3 pr-10 text-sm text-[#3A150B] focus:border-[#D81B60] focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowStaffPassword((v) => !v)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-[#3A150B]/50 hover:text-[#3A150B]"
+                            aria-label={showStaffPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                          >
+                            {showStaffPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {staffMessage && (
+                      <p
+                        role="status"
+                        className={`rounded-xl px-3.5 py-2.5 text-xs font-medium ${
+                          staffMessage.type === 'success'
+                            ? 'border border-[#16A34A]/25 bg-[#F0FDF4] text-[#15803D]'
+                            : 'border border-[#EF4444]/25 bg-[#FEF2F2] text-[#B91C1C]'
+                        }`}
+                      >
+                        {staffMessage.text}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                      <p className="text-[11px] text-[#3A150B]/65">
+                        A pessoa receberá um link de confirmação de e-mail no primeiro acesso para liberar a visualização dos pedidos.
+                      </p>
+                      <button
+                        type="submit"
+                        disabled={isSavingStaff}
+                        className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-xl bg-[#D81B60] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#AD1457] disabled:cursor-not-allowed disabled:opacity-65"
+                      >
+                        {isSavingStaff ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                            Cadastrando...
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="h-4 w-4" aria-hidden="true" />
+                            Cadastrar Atendente
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+
+                  <div className="border-t border-[#3A150B]/10 pt-5">
+                    <h3 className="text-base font-bold text-[#3A150B]">
+                      Pessoas com Acesso aos Pedidos ({staffList.length})
+                    </h3>
+
+                    {isLoadingStaff ? (
+                      <div className="mt-3 flex items-center gap-2 rounded-xl border border-[#3A150B]/10 bg-[#FFF8FB] p-6 text-sm text-[#3A150B]/70">
+                        <Loader2 className="h-4 w-4 animate-spin text-[#D81B60]" aria-hidden="true" />
+                        <span>Carregando equipe...</span>
+                      </div>
+                    ) : staffList.length === 0 ? (
+                      <p className="mt-3 rounded-xl border border-[#3A150B]/10 bg-[#FFF8FB] p-5 text-sm text-[#3A150B]/70">
+                        Nenhuma pessoa cadastrada ainda. Use o formulário acima para liberar acesso exclusivo ao campo de pedidos.
+                      </p>
+                    ) : (
+                      <ul className="mt-4 divide-y divide-[#3A150B]/10 rounded-xl border border-[#3A150B]/10 bg-[#FFFDFD]">
+                        {staffList.map((staff) => (
+                          <li
+                            key={staff.id}
+                            className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="truncate text-sm font-bold text-[#3A150B]">
+                                  {staff.nome}
+                                </p>
+                                <span
+                                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                                    staff.ativo
+                                      ? 'bg-[#DCFCE7] text-[#15803D]'
+                                      : 'bg-[#E5E7EB] text-[#4B5563]'
+                                  }`}
+                                >
+                                  {staff.ativo ? 'Ativo' : 'Desativado'}
+                                </span>
+                              </div>
+                              <p className="truncate text-xs text-[#3A150B]/65">
+                                {staff.email} · Acesso apenas a Pedidos / Notificações
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                disabled={togglingStaffId === staff.id}
+                                onClick={() => handleToggleStaffActive(staff)}
+                                className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60 ${
+                                  staff.ativo
+                                    ? 'border-[#D97706]/30 bg-[#FFFBEB] text-[#92400E] hover:bg-[#FEF3C7]'
+                                    : 'border-[#16A34A]/30 bg-[#F0FDF4] text-[#15803D] hover:bg-[#DCFCE7]'
+                                }`}
+                              >
+                                <Power className="h-3.5 w-3.5" aria-hidden="true" />
+                                {staff.ativo ? 'Desativar' : 'Reativar'}
+                              </button>
+
+                              {confirmDeleteStaffId === staff.id ? (
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteStaff(staff)}
+                                    className="min-h-[36px] rounded-lg bg-[#DC2626] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#B91C1C]"
+                                  >
+                                    Confirmar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteStaffId(null)}
+                                    className="min-h-[36px] rounded-lg border border-[#3A150B]/15 px-2.5 py-1.5 text-xs font-medium text-[#3A150B]"
+                                  >
+                                    Não
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteStaffId(staff.id)}
+                                  className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-[#EF4444]/25 bg-[#FEF2F2] px-3 py-1.5 text-xs font-semibold text-[#B91C1C] transition-colors hover:bg-[#FEE2E2]"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                  Remover
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </main>

@@ -28,13 +28,13 @@
         },
         "categoria": {
           "type": "string",
-          "description": "Categoria do cardápio (Bolos, Doces, Cupcakes & Potes).",
+          "description": "Categoria do cardápio (Bolos, Doces, Taças, Combos para Festas).",
           "maxLength": 60
         },
         "porcao": {
           "type": "string",
-          "description": "Peso ou quantidade da porção.",
-          "maxLength": 80
+          "description": "Peso, quantidade da porção ou itens inclusos no combo.",
+          "maxLength": 120
         },
         "storagePath": {
           "type": "string",
@@ -145,7 +145,7 @@
     },
     "AdminUser": {
       "title": "AdminUser",
-      "description": "Registro de administrador autorizado a gerenciar o catálogo e os pedidos.",
+      "description": "Registro de administrador autorizado a gerenciar o catálogo, equipe e os pedidos.",
       "type": "object",
       "properties": {
         "email": {
@@ -163,6 +163,44 @@
         }
       },
       "required": ["email", "role", "createdAt"]
+    },
+    "Atendente": {
+      "title": "Atendente",
+      "description": "Pessoa cadastrada pelo administrador para acessar exclusivamente o painel de pedidos e notificações.",
+      "type": "object",
+      "properties": {
+        "nome": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "role": {
+          "type": "string",
+          "enum": ["atendente"]
+        },
+        "ativo": {
+          "type": "boolean"
+        },
+        "createdBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["nome", "email", "role", "ativo", "createdBy", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -172,11 +210,15 @@
     },
     "/pedidos/{pedidoId}": {
       "schema": { "$ref": "#/entities/Pedido" },
-      "description": "Coleção de encomendas dos clientes; criação pública validada pelo checkout e leitura/gerenciamento exclusivo por administradores."
+      "description": "Coleção de encomendas dos clientes; criação pública validada pelo checkout e leitura/gerenciamento por administradores e atendentes ativos."
     },
     "/admins/{adminId}": {
       "schema": { "$ref": "#/entities/AdminUser" },
       "description": "Lista de UIDs de administradores autorizados."
+    },
+    "/atendentes/{atendenteId}": {
+      "schema": { "$ref": "#/entities/Atendente" },
+      "description": "Lista de pessoas autorizadas pelo administrador a acessar apenas o painel de pedidos."
     }
   }
 }

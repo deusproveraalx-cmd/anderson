@@ -14,17 +14,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   onClose,
   onAddToCart,
 }) => {
+  const hasSelectableFlavors =
+    Boolean(product && product.category !== 'Taças' && product.flavors.length > 0);
   const flavorsList =
-    product && product.flavors.length > 0 ? product.flavors : ['Tradicional'];
-  const [selectedFlavor, setSelectedFlavor] = useState<string>(flavorsList[0] ?? 'Tradicional');
+    hasSelectableFlavors && product ? product.flavors : ['Montada conforme descrição'];
+  const [selectedFlavor, setSelectedFlavor] = useState<string>(
+    flavorsList[0] ?? 'Montada conforme descrição'
+  );
   const [quantity, setQuantity] = useState(1);
   const [note, setNote] = useState('');
 
   if (!product) return null;
 
-  const activeFlavor = flavorsList.includes(selectedFlavor)
-    ? selectedFlavor
-    : flavorsList[0];
+  const activeFlavor = hasSelectableFlavors
+    ? flavorsList.includes(selectedFlavor)
+      ? selectedFlavor
+      : flavorsList[0]
+    : 'Montada conforme descrição';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,24 +52,39 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       aria-labelledby="pdp-modal-title"
     >
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
-      <div className="relative z-10 grid w-full max-w-3xl overflow-hidden rounded-2xl bg-[#FFFDFD] shadow-2xl md:grid-cols-2">
+      <div className="relative z-10 grid max-h-[92dvh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-[#FFFDFD] shadow-2xl md:grid-cols-2">
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#260E09] shadow-sm transition-colors hover:bg-[#FCEEF2]"
+          className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-[#260E09] shadow-sm transition-colors hover:bg-[#FCEEF2]"
           aria-label="Fechar detalhes do produto"
         >
           <X className="h-5 w-5" />
         </button>
 
         {/* Left Image */}
-        <div className={`relative min-h-[260px] bg-gradient-to-br ${product.fallbackGradient}`}>
+        <div
+          className={`relative min-h-[210px] sm:min-h-[260px] ${
+            product.category === 'Combos para Festas' || product.category === 'Taças'
+              ? 'bg-white p-3'
+              : `bg-gradient-to-br ${product.fallbackGradient}`
+          }`}
+        >
           <img
             src={product.image}
             alt={product.name}
             referrerPolicy="no-referrer"
-            className="h-full w-full object-cover"
+            className={`h-full max-h-[320px] w-full md:max-h-full ${
+              product.category === 'Combos para Festas' || product.category === 'Taças'
+                ? 'object-contain'
+                : 'object-cover'
+            }`}
           />
+          {product.category === 'Taças' && (
+            <span className="pointer-events-none absolute inset-x-3 bottom-3 rounded-lg bg-[#260E09]/80 px-3 py-1 text-center text-xs font-bold tracking-wide text-white uppercase shadow-sm">
+              Imagens ilustrativas
+            </span>
+          )}
         </div>
 
         {/* Right Contiguous Purchase Module */}
@@ -87,28 +108,30 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               {product.description}
             </p>
 
-            {/* Flavor Selection */}
-            <div className="mt-5">
-              <span className="block text-xs font-semibold text-[#260E09]">
-                Escolha o sabor / recheio
-              </span>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {flavorsList.map((flavor) => (
-                  <button
-                    key={flavor}
-                    type="button"
-                    onClick={() => setSelectedFlavor(flavor)}
-                    className={`min-h-[38px] rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
-                      activeFlavor === flavor
-                        ? 'border-[#D81B60] bg-[#FCEEF2] text-[#9D174D]'
-                        : 'border-[#3A1810]/15 bg-white text-[#3A1810] hover:border-[#D81B60]/40'
-                    }`}
-                  >
-                    {flavor}
-                  </button>
-                ))}
+            {/* Flavor Selection (hidden for fixed-assembly Taças) */}
+            {hasSelectableFlavors && (
+              <div className="mt-5">
+                <span className="block text-xs font-semibold text-[#260E09]">
+                  Escolha o sabor / recheio
+                </span>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {flavorsList.map((flavor) => (
+                    <button
+                      key={flavor}
+                      type="button"
+                      onClick={() => setSelectedFlavor(flavor)}
+                      className={`min-h-[38px] rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap ${
+                        activeFlavor === flavor
+                          ? 'border-[#D81B60] bg-[#FCEEF2] text-[#9D174D]'
+                          : 'border-[#3A1810]/15 bg-white text-[#3A1810] hover:border-[#D81B60]/40'
+                      }`}
+                    >
+                      {flavor}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Optional Note */}
             <div className="mt-4">

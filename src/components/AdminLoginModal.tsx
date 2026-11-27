@@ -49,7 +49,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
     setErrorMsg('');
 
     if (!email.trim() || !password) {
-      setErrorMsg('Preencha o e-mail e a senha de administrador.');
+      setErrorMsg('Preencha o e-mail e a senha de acesso.');
       return;
     }
 
@@ -80,7 +80,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
           type="button"
           onClick={onClose}
           className="absolute right-3.5 top-3.5 flex h-9 w-9 items-center justify-center rounded-lg text-[#3A150B]/60 transition-colors hover:bg-[#FCEEF2] hover:text-[#3A150B]"
-          aria-label="Fechar login de administrador"
+          aria-label="Fechar login do painel"
         >
           <X className="h-5 w-5" />
         </button>
@@ -91,10 +91,10 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
           </div>
           <div>
             <h2 id="admin-login-title" className="font-hand text-2xl font-bold text-[#3A150B]">
-              Acesso Administrativo
+              Acesso ao Painel
             </h2>
             <p className="text-xs text-[#3A150B]/65">
-              Entre para gerenciar os produtos da vitrine
+              Entre com seu e-mail e senha de administrador ou equipe
             </p>
           </div>
         </div>
@@ -102,7 +102,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           <div>
             <label htmlFor="admin-email" className="block text-xs font-semibold text-[#3A150B]">
-              E-mail do administrador
+              E-mail
             </label>
             <div className="relative mt-1">
               <Mail
@@ -115,7 +115,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@deliciadaesther.com"
+                placeholder="seuemail@exemplo.com"
                 className="w-full rounded-xl border border-[#3A150B]/15 bg-white py-2.5 pl-9 pr-3 text-sm text-[#3A150B] placeholder:text-[#3A150B]/40 focus:border-[#D81B60] focus:outline-none"
               />
             </div>

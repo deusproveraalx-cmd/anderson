@@ -303,7 +303,7 @@ export const ChristmasMusicButton: React.FC = () => {
       aria-label={isPlaying ? 'Pausar piano natalino' : 'Tocar piano natalino'}
       aria-pressed={isPlaying}
       title={isPlaying ? 'Pausar piano de Natal' : 'Tocar piano de Natal'}
-      className="fixed bottom-4 left-4 z-40 inline-flex items-center gap-2 rounded-full border border-[#F9A8D4]/75 bg-[#3A140A]/90 px-3.5 py-2 text-xs font-medium text-[#FFF5F8] shadow-lg backdrop-blur-sm transition-transform duration-200 hover:scale-105 hover:bg-[#4F2012] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D81B60]"
+      className="fixed bottom-20 left-3 z-40 inline-flex items-center gap-2 rounded-full border border-[#F9A8D4]/75 bg-[#3A140A]/90 px-3 py-2 text-xs font-medium text-[#FFF5F8] shadow-lg backdrop-blur-sm transition-transform duration-200 hover:scale-105 hover:bg-[#4F2012] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D81B60] lg:bottom-4 lg:left-4 lg:px-3.5"
     >
       <Snowflake
         className={`h-3.5 w-3.5 text-[#F9A8D4] ${isPlaying ? 'animate-spin' : ''}`}

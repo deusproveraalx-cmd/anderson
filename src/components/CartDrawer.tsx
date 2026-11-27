@@ -11,7 +11,11 @@ import {
 } from 'lucide-react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { WHATSAPP_NUMBER, WHATSAPP_DISPLAY } from '../data/products';
+import {
+  getTodayScheduleEntries,
+  WHATSAPP_NUMBER,
+  WHATSAPP_DISPLAY,
+} from '../data/products';
 
 export interface CartItem {
   key: string;
@@ -91,7 +95,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       `Subtotal: ${formatBRL(subtotal)}`,
       deliveryMode === 'entrega'
         ? `Entrega: ${formatBRL(deliveryCost)}${address ? `\nEndereço: ${address}` : ''}`
-        : 'Modo: Retirada no ateliê',
+        : 'Modo: Retirada no ponto de atendimento do dia',
       `*Total: ${formatBRL(total)}*`,
       `Pagamento: ${paymentMethod}`,
       observacoes.trim() ? `Observações: ${observacoes.trim()}` : '',
@@ -236,7 +240,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               <p className="mt-3 text-sm leading-relaxed text-[#166534]">
                 Obrigado, <strong>{confirmedOrder.customerName}</strong>! Recebemos seu pedido com{' '}
                 {confirmedOrder.itemCount} {confirmedOrder.itemCount === 1 ? 'item' : 'itens'} (
-                {confirmedOrder.deliveryMode === 'entrega' ? 'Entrega Rápida' : 'Retirada no Ateliê'}) no valor de{' '}
+                {confirmedOrder.deliveryMode === 'entrega' ? 'Entrega Rápida' : 'Retirada no ponto do dia'}) no valor de{' '}
                 <strong className="tabular-nums">{formatBRL(confirmedOrder.total)}</strong>.
               </p>
               <p className="mt-2 text-xs text-[#166534]/90">
@@ -308,7 +312,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         </button>
                       </div>
                       <p className="mt-0.5 text-xs text-[#3A1810]/65">
-                        Sabor: {item.flavor}
+                        {item.flavor === 'Montada conforme descrição'
+                          ? 'Montada conforme descrição'
+                          : `Sabor: ${item.flavor}`}
                       </p>
                       {item.note && (
                         <p className="mt-0.5 text-xs text-[#9D174D]">
@@ -406,7 +412,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       className="mt-1 w-full rounded-lg border border-[#3A1810]/15 bg-white px-3 py-2 text-sm text-[#260E09] placeholder:text-[#3A1810]/40 focus:border-[#D81B60] focus:outline-none"
                     />
                   </div>
-                  {deliveryMode === 'entrega' && (
+                  {deliveryMode === 'entrega' ? (
                     <div>
                       <label htmlFor="checkout-address" className="block text-xs font-medium text-[#3A1810]/80">
                         Endereço de entrega
@@ -420,6 +426,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         placeholder="Rua, número, bairro e ponto de referência"
                         className="mt-1 w-full rounded-lg border border-[#3A1810]/15 bg-white px-3 py-2 text-sm text-[#260E09] placeholder:text-[#3A1810]/40 focus:border-[#D81B60] focus:outline-none"
                       />
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-[#D81B60]/20 bg-[#FFF8FB] px-3 py-2.5 text-xs text-[#3A1810]/85">
+                      <p className="font-semibold text-[#9D174D]">
+                        Agenda de hoje para retirada:
+                      </p>
+                      <p className="mt-0.5 leading-relaxed">
+                        {getTodayScheduleEntries()
+                          .map((entry) => `${entry.location} (${entry.hours})`)
+                          .join(' · ')}
+                      </p>
                     </div>
                   )}
                   <div>
@@ -472,7 +489,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 <span className="tabular-nums">{formatBRL(subtotal)}</span>
               </div>
               <div className="flex justify-between text-[#3A1810]/75">
-                <span>{deliveryMode === 'entrega' ? 'Entrega rápida' : 'Retirada no ateliê'}</span>
+                <span>{deliveryMode === 'entrega' ? 'Entrega rápida' : 'Retirada no ponto'}</span>
                 <span className="tabular-nums">{deliveryCost === 0 ? 'Grátis' : formatBRL(deliveryCost)}</span>
               </div>
               <div className="flex justify-between border-t border-[#3A1810]/10 pt-2 text-base font-bold text-[#260E09]">

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { MessageCircle, CalendarHeart, Check, AlertCircle } from 'lucide-react';
+import { MessageCircle, CalendarHeart, Check, AlertCircle, Sparkles } from 'lucide-react';
 import { WHATSAPP_NUMBER } from '../data/products';
 import { formatBRL } from './CartDrawer';
 
@@ -12,20 +12,29 @@ interface CustomOrderSectionProps {
   }) => void;
 }
 
-const CAKE_SIZES = [
-  { id: '1.5kg', label: '1,5 kg (12 a 15 fatias)', price: 135 },
-  { id: '2kg', label: '2 kg (18 a 22 fatias)', price: 165 },
-  { id: '3kg', label: '3 kg (28 a 32 fatias)', price: 235 },
-];
+const CAKE_WEIGHTS = [
+  { id: '1kg', label: '1 kg', slices: '8 a 10 fatias', kg: 1 },
+  { id: '1.5kg', label: '1,5 kg', slices: '12 a 15 fatias', kg: 1.5 },
+  { id: '2kg', label: '2 kg', slices: '18 a 22 fatias', kg: 2 },
+  { id: '3kg', label: '3 kg', slices: '28 a 32 fatias', kg: 3 },
+] as const;
 
-const DOUGH_OPTIONS = ['Chocolate 50% Cacau', 'Baunilha Amanteigada', 'Red Velvet'];
-const FILLING_OPTIONS = [
-  'Brigadeiro Gourmet + Morangos',
-  'Leite Ninho com Morango',
-  'Quatro Leites Cremoso',
-  'Doce de Leite com Ameixa',
-];
+const DOUGH_OPTIONS = [
+  { id: 'branca', label: 'Massa Branca', surchargePerKg: 0, note: 'R$ 65,00/kg base' },
+  { id: 'chocolate', label: 'Massa de Chocolate', surchargePerKg: 15, note: 'acréscimo (+R$ 15/kg → R$ 80/kg)' },
+] as const;
 
+const FILLING_OPTIONS = ['Ninho', 'Chocolate', 'Dois amores', 'Prestígio'] as const;
+
+const FRUIT_OPTIONS = [
+  { id: 'none', label: 'Sem frutas (tradicional)', surchargePerKg: 0 },
+  { id: 'Morango', label: 'Com Morango', surchargePerKg: 15 },
+  { id: 'Abacaxi', label: 'Com Abacaxi', surchargePerKg: 15 },
+  { id: 'Uva', label: 'Com Uva', surchargePerKg: 15 },
+] as const;
+
+const BASE_PRICE_PER_KG = 65;
+const MIN_TOPPER_PRICE = 15;
 const MIN_ADVANCE_DAYS = 3;
 
 function getMinOrderDateInfo(): { iso: string; br: string } {
@@ -48,15 +57,29 @@ export const CustomOrderSection: React.FC<CustomOrderSectionProps> = ({
 }) => {
   const minDateInfo = useMemo(() => getMinOrderDateInfo(), []);
 
-  const [sizeId, setSizeId] = useState(CAKE_SIZES[1].id);
-  const [dough, setDough] = useState(DOUGH_OPTIONS[0]);
-  const [filling, setFilling] = useState(FILLING_OPTIONS[0]);
+  const [weightId, setWeightId] = useState<(typeof CAKE_WEIGHTS)[number]['id']>('2kg');
+  const [doughId, setDoughId] = useState<(typeof DOUGH_OPTIONS)[number]['id']>('branca');
+  const [filling, setFilling] = useState<(typeof FILLING_OPTIONS)[number]>(FILLING_OPTIONS[0]);
+  const [fruitId, setFruitId] = useState<(typeof FRUIT_OPTIONS)[number]['id']>('none');
+  const [includeTopper, setIncludeTopper] = useState(false);
   const [eventDate, setEventDate] = useState(minDateInfo.iso);
   const [themeNote, setThemeNote] = useState('');
   const [dateError, setDateError] = useState('');
   const [addedFeedback, setAddedFeedback] = useState(false);
 
-  const selectedSize = CAKE_SIZES.find((s) => s.id === sizeId) ?? CAKE_SIZES[1];
+  const selectedWeight = CAKE_WEIGHTS.find((w) => w.id === weightId) ?? CAKE_WEIGHTS[2];
+  const selectedDough = DOUGH_OPTIONS.find((d) => d.id === doughId) ?? DOUGH_OPTIONS[0];
+  const selectedFruit = FRUIT_OPTIONS.find((f) => f.id === fruitId) ?? FRUIT_OPTIONS[0];
+
+  const pricePerKg =
+    BASE_PRICE_PER_KG + selectedDough.surchargePerKg + selectedFruit.surchargePerKg;
+  const cakePrice = Number((selectedWeight.kg * pricePerKg).toFixed(2));
+  const topperPrice = includeTopper ? MIN_TOPPER_PRICE : 0;
+  const totalPrice = Number((cakePrice + topperPrice).toFixed(2));
+
+  const flavorSummary =
+    selectedFruit.id === 'none' ? filling : `${filling} com ${selectedFruit.id}`;
+
   const isDateValid = Boolean(eventDate && eventDate >= minDateInfo.iso);
 
   const validateDate = (): boolean => {
@@ -79,12 +102,16 @@ export const CustomOrderSection: React.FC<CustomOrderSectionProps> = ({
   const customWhatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
     [
       'Olá, *Delícia da Esther*! Quero fazer uma encomenda especial de bolo personalizado:',
-      `• Tamanho: ${selectedSize.label}`,
-      `• Massa: ${dough}`,
-      `• Recheio: ${filling}`,
+      `• Peso: ${selectedWeight.label} (${selectedWeight.slices})`,
+      `• Massa: ${selectedDough.label}`,
+      `• Recheio: ${flavorSummary}`,
+      `• Valor do kg: ${formatBRL(pricePerKg)}/kg (Bolo: ${formatBRL(cakePrice)})`,
+      includeTopper
+        ? `• Topo de bolo (à parte): a partir de ${formatBRL(MIN_TOPPER_PRICE)}`
+        : '• Topo de bolo: Sem topo',
       eventDate ? `• Data da entrega/evento: ${eventDate.split('-').reverse().join('/')}` : '',
       themeNote ? `• Tema / Decoração: ${themeNote}` : '',
-      `• Valor estimado: ${formatBRL(selectedSize.price)}`,
+      `• Total estimado: ${formatBRL(totalPrice)}`,
     ]
       .filter(Boolean)
       .join('\n')
@@ -96,15 +123,17 @@ export const CustomOrderSection: React.FC<CustomOrderSectionProps> = ({
 
     const formattedBrDate = eventDate.split('-').reverse().join('/');
     const noteParts = [
-      `Massa ${dough}`,
+      selectedDough.label,
+      `${formatBRL(pricePerKg)}/kg`,
+      includeTopper ? `Topo de bolo (mín. ${formatBRL(MIN_TOPPER_PRICE)})` : null,
       `Data: ${formattedBrDate}`,
       themeNote.trim() ? `Tema: ${themeNote.trim()}` : null,
     ].filter(Boolean);
 
     onAddCustomCakeToCart({
-      name: `Bolo Personalizado (${selectedSize.id})`,
-      flavor: filling,
-      price: selectedSize.price,
+      name: `Bolo Personalizado (${selectedWeight.label})`,
+      flavor: flavorSummary,
+      price: totalPrice,
       note: noteParts.join(' · '),
     });
 
@@ -113,8 +142,8 @@ export const CustomOrderSection: React.FC<CustomOrderSectionProps> = ({
   };
 
   return (
-    <section id="encomendas" className="border-y border-[#3A1810]/10 bg-[#FCEEF2]/65 py-16 md:py-20">
-      <div className="mx-auto max-w-[920px] px-4 sm:px-6 lg:px-8">
+    <section id="encomendas" className="border-y border-[#3A1810]/10 bg-[#FCEEF2]/65 py-14 md:py-16">
+      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-[#3A1810]/10 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#D81B60]">
             <CalendarHeart className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -124,66 +153,76 @@ export const CustomOrderSection: React.FC<CustomOrderSectionProps> = ({
             Monte seu bolo personalizado
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-[#3A1810]/75">
-            Escolha o peso, massa e recheio ideais para a sua festa. As encomendas de bolos personalizados devem ser feitas com no mínimo <strong>3 dias de antecedência</strong>.
+            Massa branca a partir de <strong>R$ 65,00/kg</strong>, massa de chocolate <strong>R$ 80,00/kg</strong> e recheios com frutas (morango, abacaxi ou uva) a partir de <strong>R$ 80,00/kg</strong>. Pedidos com no mínimo <strong>3 dias de antecedência</strong>.
           </p>
 
           <form onSubmit={handleAddCustomToCart} className="mt-6 space-y-5">
-            {/* Size */}
+            {/* 1. Weight */}
             <div>
               <span className="block text-xs font-semibold text-[#260E09]">
-                1. Tamanho do bolo
+                1. Peso do bolo ({formatBRL(pricePerKg)}/kg selecionado)
               </span>
-              <div className="mt-2 grid gap-2.5 sm:grid-cols-3">
-                {CAKE_SIZES.map((size) => (
-                  <button
-                    key={size.id}
-                    type="button"
-                    onClick={() => setSizeId(size.id)}
-                    className={`flex flex-col items-start rounded-xl border p-3 text-left transition-colors ${
-                      sizeId === size.id
-                        ? 'border-[#D81B60] bg-[#FCEEF2] text-[#260E09]'
-                        : 'border-[#3A1810]/15 bg-white text-[#3A1810] hover:border-[#D81B60]/40'
-                    }`}
-                  >
-                    <span className="text-sm font-bold tabular-nums">{size.id}</span>
-                    <span className="mt-0.5 text-xs text-[#3A1810]/70">{size.label.replace(`${size.id} `, '')}</span>
-                    <span className="mt-1.5 text-xs font-semibold tabular-nums text-[#D81B60]">
-                      {formatBRL(size.price)}
-                    </span>
-                  </button>
-                ))}
+              <div className="mt-2 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                {CAKE_WEIGHTS.map((weight) => {
+                  const previewPrice = weight.kg * pricePerKg;
+                  return (
+                    <button
+                      key={weight.id}
+                      type="button"
+                      onClick={() => setWeightId(weight.id)}
+                      className={`flex flex-col items-start rounded-xl border p-3 text-left transition-colors ${
+                        weightId === weight.id
+                          ? 'border-[#D81B60] bg-[#FCEEF2] text-[#260E09]'
+                          : 'border-[#3A1810]/15 bg-white text-[#3A1810] hover:border-[#D81B60]/40'
+                      }`}
+                    >
+                      <span className="text-sm font-bold tabular-nums">{weight.label}</span>
+                      <span className="mt-0.5 text-[11px] text-[#3A1810]/70">{weight.slices}</span>
+                      <span className="mt-1.5 text-xs font-semibold tabular-nums text-[#D81B60]">
+                        {formatBRL(previewPrice)}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Dough & Filling */}
+            {/* 2. Dough & 3. Filling */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label htmlFor="custom-dough" className="block text-xs font-semibold text-[#260E09]">
-                  2. Massa artesanal
-                </label>
-                <select
-                  id="custom-dough"
-                  value={dough}
-                  onChange={(e) => setDough(e.target.value)}
-                  className="mt-1.5 w-full rounded-lg border border-[#3A1810]/15 bg-white px-3 py-2.5 text-sm text-[#260E09] focus:border-[#D81B60] focus:outline-none"
-                >
+                <span className="block text-xs font-semibold text-[#260E09]">
+                  2. Massa
+                </span>
+                <div className="mt-1.5 grid grid-cols-2 gap-2">
                   {DOUGH_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setDoughId(opt.id)}
+                      className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                        doughId === opt.id
+                          ? 'border-[#D81B60] bg-[#FCEEF2] text-[#260E09]'
+                          : 'border-[#3A1810]/15 bg-white text-[#3A1810] hover:border-[#D81B60]/40'
+                      }`}
+                    >
+                      <span className="block text-xs font-bold">{opt.label}</span>
+                      <span className="mt-0.5 block text-[11px] text-[#3A1810]/70">
+                        {opt.surchargePerKg === 0 ? 'R$ 65,00/kg' : 'R$ 80,00/kg (+R$ 15/kg)'}
+                      </span>
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
 
               <div>
                 <label htmlFor="custom-filling" className="block text-xs font-semibold text-[#260E09]">
-                  3. Recheio principal
+                  3. Recheio
                 </label>
                 <select
                   id="custom-filling"
                   value={filling}
-                  onChange={(e) => setFilling(e.target.value)}
-                  className="mt-1.5 w-full rounded-lg border border-[#3A1810]/15 bg-white px-3 py-2.5 text-sm text-[#260E09] focus:border-[#D81B60] focus:outline-none"
+                  onChange={(e) => setFilling(e.target.value as (typeof FILLING_OPTIONS)[number])}
+                  className="mt-1.5 w-full rounded-xl border border-[#3A1810]/15 bg-white px-3 py-2.5 text-sm text-[#260E09] focus:border-[#D81B60] focus:outline-none"
                 >
                   {FILLING_OPTIONS.map((opt) => (
                     <option key={opt} value={opt}>
@@ -191,14 +230,88 @@ export const CustomOrderSection: React.FC<CustomOrderSectionProps> = ({
                     </option>
                   ))}
                 </select>
+                <p className="mt-1 text-[11px] text-[#3A1810]/65">
+                  Recheios tradicionais: Ninho, Chocolate, Dois amores ou Prestígio.
+                </p>
               </div>
             </div>
 
-            {/* Date & Theme */}
+            {/* 4. Fruit Filling & 5. Topper */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="custom-fruit" className="block text-xs font-semibold text-[#260E09]">
+                  4. Recheio com frutas (opcional)
+                </label>
+                <select
+                  id="custom-fruit"
+                  value={fruitId}
+                  onChange={(e) => setFruitId(e.target.value as (typeof FRUIT_OPTIONS)[number]['id'])}
+                  className="mt-1.5 w-full rounded-xl border border-[#3A1810]/15 bg-white px-3 py-2.5 text-sm text-[#260E09] focus:border-[#D81B60] focus:outline-none"
+                >
+                  {FRUIT_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.surchargePerKg === 0
+                        ? opt.label
+                        : `${opt.label} (massa branca R$ 80,00/kg)`}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-[#3A1810]/65">
+                  Frutas disponíveis: Morango, Abacaxi ou Uva (+R$ 15,00/kg).
+                </p>
+              </div>
+
+              <div>
+                <span className="block text-xs font-semibold text-[#260E09]">
+                  5. Topo de bolo (cobrado à parte)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIncludeTopper((v) => !v)}
+                  aria-pressed={includeTopper}
+                  className={`mt-1.5 flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-colors ${
+                    includeTopper
+                      ? 'border-[#D81B60] bg-[#FCEEF2] text-[#260E09]'
+                      : 'border-[#3A1810]/15 bg-white text-[#3A1810] hover:border-[#D81B60]/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Sparkles
+                      className={`h-4 w-4 shrink-0 ${
+                        includeTopper ? 'text-[#D81B60]' : 'text-[#3A1810]/45'
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <div className="min-w-0">
+                      <span className="block text-xs font-bold">
+                        {includeTopper ? 'Com topo de bolo' : 'Adicionar topo de bolo'}
+                      </span>
+                      <span className="block text-[11px] text-[#3A1810]/70">
+                        Cobrado à parte · Mínimo {formatBRL(MIN_TOPPER_PRICE)}
+                      </span>
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                      includeTopper
+                        ? 'bg-[#D81B60] text-white'
+                        : 'bg-[#3A1810]/10 text-[#3A1810]'
+                    }`}
+                  >
+                    {includeTopper ? `+ ${formatBRL(MIN_TOPPER_PRICE)}` : 'Opcional'}
+                  </span>
+                </button>
+                <p className="mt-1 text-[11px] text-[#3A1810]/65">
+                  Valor mínimo de R$ 15,00 (modelos mais elaborados têm ajuste combinado no WhatsApp).
+                </p>
+              </div>
+            </div>
+
+            {/* 6. Date & Theme */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="custom-date" className="block text-xs font-semibold text-[#260E09]">
-                  4. Data desejada (mín. 3 dias de antecedência)
+                  6. Data desejada (mín. 3 dias de antecedência)
                 </label>
                 <input
                   id="custom-date"
@@ -213,7 +326,7 @@ export const CustomOrderSection: React.FC<CustomOrderSectionProps> = ({
                       setDateError('');
                     }
                   }}
-                  className="mt-1.5 w-full rounded-lg border border-[#3A1810]/15 bg-white px-3 py-2 text-sm text-[#260E09] focus:border-[#D81B60] focus:outline-none"
+                  className="mt-1.5 w-full rounded-xl border border-[#3A1810]/15 bg-white px-3 py-2 text-sm text-[#260E09] focus:border-[#D81B60] focus:outline-none"
                 />
                 <p className="mt-1 text-[11px] text-[#3A1810]/65">
                   Disponível para entregas/retiradas a partir de <strong>{minDateInfo.br}</strong>.
@@ -222,7 +335,7 @@ export const CustomOrderSection: React.FC<CustomOrderSectionProps> = ({
 
               <div>
                 <label htmlFor="custom-theme" className="block text-xs font-semibold text-[#260E09]">
-                  5. Tema, cores ou escrita no topo
+                  7. Tema, cores ou detalhes do topo
                 </label>
                 <input
                   id="custom-theme"
@@ -230,7 +343,7 @@ export const CustomOrderSection: React.FC<CustomOrderSectionProps> = ({
                   value={themeNote}
                   onChange={(e) => setThemeNote(e.target.value)}
                   placeholder="Ex.: Rosetas rosa, flores e nome Esther"
-                  className="mt-1.5 w-full rounded-lg border border-[#3A1810]/15 bg-white px-3 py-2 text-sm text-[#260E09] placeholder:text-[#3A1810]/40 focus:border-[#D81B60] focus:outline-none"
+                  className="mt-1.5 w-full rounded-xl border border-[#3A1810]/15 bg-white px-3 py-2 text-sm text-[#260E09] placeholder:text-[#3A1810]/40 focus:border-[#D81B60] focus:outline-none"
                 />
               </div>
             </div>
@@ -248,9 +361,12 @@ export const CustomOrderSection: React.FC<CustomOrderSectionProps> = ({
             {/* Summary & CTAs */}
             <div className="flex flex-col gap-3 border-t border-[#3A1810]/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <span className="block text-xs text-[#3A1810]/65">Valor estimado</span>
+                <span className="block text-xs text-[#3A1810]/65">
+                  Valor estimado ({selectedWeight.label} a {formatBRL(pricePerKg)}/kg
+                  {includeTopper ? ` + Topo mín. ${formatBRL(MIN_TOPPER_PRICE)}` : ''})
+                </span>
                 <span className="font-display text-2xl font-bold tabular-nums text-[#260E09]">
-                  {formatBRL(selectedSize.price)}
+                  {formatBRL(totalPrice)}
                 </span>
               </div>
 
