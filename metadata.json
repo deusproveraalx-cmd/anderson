@@ -1,0 +1,6 @@
+{
+  "name": "Delícia da Ester — Bolos e Doces",
+  "description": "Confeitaria artesanal Delícia da Ester. Bolos personalizados, doces variados, cupcakes e encomendas especiais feitos com amor para adoçar sua vida.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

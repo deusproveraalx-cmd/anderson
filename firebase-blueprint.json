@@ -1,0 +1,182 @@
+{
+  "entities": {
+    "Produto": {
+      "title": "Produto",
+      "description": "Item artesanal do cardápio da Delícia da Esther exibido na vitrine pública e gerenciado pelo administrador.",
+      "type": "object",
+      "properties": {
+        "nome": {
+          "type": "string",
+          "description": "Nome do bolo, doce ou kit.",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "descricao": {
+          "type": "string",
+          "description": "Descrição detalhada do produto.",
+          "minLength": 2,
+          "maxLength": 600
+        },
+        "preco": {
+          "type": "number",
+          "description": "Preço em Reais (BRL)."
+        },
+        "imagemUrl": {
+          "type": "string",
+          "description": "Foto do produto em Base64 comprimido (JPEG) ou URL direta.",
+          "maxLength": 450000
+        },
+        "categoria": {
+          "type": "string",
+          "description": "Categoria do cardápio (Bolos, Doces, Cupcakes & Potes).",
+          "maxLength": 60
+        },
+        "porcao": {
+          "type": "string",
+          "description": "Peso ou quantidade da porção.",
+          "maxLength": 80
+        },
+        "storagePath": {
+          "type": "string",
+          "description": "Campo legado opcional.",
+          "maxLength": 300
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "UID do administrador que criou o produto.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na criação."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp do servidor na última atualização."
+        }
+      },
+      "required": ["nome", "descricao", "preco", "imagemUrl", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Pedido": {
+      "title": "Pedido",
+      "description": "Encomenda enviada pelo cliente no carrinho de compras e gerenciada em tempo real pelo administrador.",
+      "type": "object",
+      "properties": {
+        "numeroPedido": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 30
+        },
+        "clienteNome": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "clienteWhatsapp": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 40
+        },
+        "modoEntrega": {
+          "type": "string",
+          "enum": ["entrega", "retirada"]
+        },
+        "endereco": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "formaPagamento": {
+          "type": "string",
+          "enum": ["Pix", "Cartão na entrega", "Dinheiro"]
+        },
+        "itens": {
+          "type": "array",
+          "description": "Lista de itens do pedido."
+        },
+        "subtotal": {
+          "type": "number"
+        },
+        "taxaEntrega": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        },
+        "observacoes": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "status": {
+          "type": "string",
+          "enum": ["novo", "em_preparo", "concluido"]
+        },
+        "autoPrintedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp exato do servidor quando o pedido foi impresso automaticamente."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "numeroPedido",
+        "clienteNome",
+        "clienteWhatsapp",
+        "modoEntrega",
+        "endereco",
+        "formaPagamento",
+        "itens",
+        "subtotal",
+        "taxaEntrega",
+        "total",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Registro de administrador autorizado a gerenciar o catálogo e os pedidos.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["email", "role", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/produtos/{produtoId}": {
+      "schema": { "$ref": "#/entities/Produto" },
+      "description": "Coleção pública de produtos da loja; leitura pública na vitrine e escrita exclusiva por administradores."
+    },
+    "/pedidos/{pedidoId}": {
+      "schema": { "$ref": "#/entities/Pedido" },
+      "description": "Coleção de encomendas dos clientes; criação pública validada pelo checkout e leitura/gerenciamento exclusivo por administradores."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Lista de UIDs de administradores autorizados."
+    }
+  }
+}

@@ -1,0 +1,187 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'deusproveraalx@gmail.com'
+      );
+    }
+
+    function isValidOptionalString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isValidProduto(data) {
+      return data.keys().hasAll(['nome', 'descricao', 'preco', 'imagemUrl', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'nome',
+          'descricao',
+          'preco',
+          'imagemUrl',
+          'categoria',
+          'porcao',
+          'storagePath',
+          'createdBy',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.nome is string && data.nome.size() >= 2 && data.nome.size() <= 120
+        && data.descricao is string && data.descricao.size() >= 2 && data.descricao.size() <= 600
+        && (data.preco is int || data.preco is float) && data.preco > 0 && data.preco <= 100000
+        && data.imagemUrl is string && data.imagemUrl.size() >= 1 && data.imagemUrl.size() <= 450000
+        && isValidOptionalString(data, 'categoria', 60)
+        && isValidOptionalString(data, 'porcao', 80)
+        && isValidOptionalString(data, 'storagePath', 300)
+        && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPedido(data) {
+      return data.keys().hasAll([
+          'numeroPedido',
+          'clienteNome',
+          'clienteWhatsapp',
+          'modoEntrega',
+          'endereco',
+          'formaPagamento',
+          'itens',
+          'subtotal',
+          'taxaEntrega',
+          'total',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'numeroPedido',
+          'clienteNome',
+          'clienteWhatsapp',
+          'modoEntrega',
+          'endereco',
+          'formaPagamento',
+          'itens',
+          'subtotal',
+          'taxaEntrega',
+          'total',
+          'observacoes',
+          'status',
+          'autoPrintedAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.numeroPedido is string && data.numeroPedido.size() >= 2 && data.numeroPedido.size() <= 30
+        && data.clienteNome is string && data.clienteNome.size() >= 2 && data.clienteNome.size() <= 120
+        && data.clienteWhatsapp is string && data.clienteWhatsapp.size() >= 6 && data.clienteWhatsapp.size() <= 40
+        && data.modoEntrega in ['entrega', 'retirada']
+        && data.endereco is string && data.endereco.size() <= 300
+        && data.formaPagamento in ['Pix', 'Cartão na entrega', 'Dinheiro']
+        && data.itens is list && data.itens.size() >= 1 && data.itens.size() <= 50
+        && data.itens[0] is map
+        && data.itens[0].keys().hasAll(['nome', 'quantidade', 'preco'])
+        && data.itens[0].nome is string && data.itens[0].nome.size() >= 1 && data.itens[0].nome.size() <= 140
+        && (data.itens[0].quantidade is int && data.itens[0].quantidade >= 1 && data.itens[0].quantidade <= 500)
+        && ((data.itens[0].preco is int || data.itens[0].preco is float) && data.itens[0].preco > 0 && data.itens[0].preco <= 100000)
+        && (data.subtotal is int || data.subtotal is float) && data.subtotal >= 0 && data.subtotal <= 200000
+        && (data.taxaEntrega is int || data.taxaEntrega is float) && data.taxaEntrega >= 0 && data.taxaEntrega <= 5000
+        && (data.total is int || data.total is float) && data.total > 0 && data.total <= 250000
+        && isValidOptionalString(data, 'observacoes', 500)
+        && data.status in ['novo', 'em_preparo', 'concluido']
+        && (!('autoPrintedAt' in data) || data.autoPrintedAt is timestamp)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Storefront public catalog: public read, admin-only write
+    match /produtos/{produtoId} {
+      allow get: if isValidId(produtoId);
+      allow list: if true;
+
+      allow create: if isAdmin()
+        && isValidId(produtoId)
+        && isValidProduto(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidId(produtoId)
+        && isValidProduto(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'nome',
+          'descricao',
+          'preco',
+          'imagemUrl',
+          'categoria',
+          'porcao',
+          'storagePath',
+          'updatedAt'
+        ]);
+
+      allow delete: if isAdmin() && isValidId(produtoId);
+    }
+
+    // Customer orders: validated public creation, admin-only read/update/delete (PII protected)
+    match /pedidos/{pedidoId} {
+      allow get: if isAdmin() && isValidId(pedidoId);
+      allow list: if isAdmin();
+
+      allow create: if isValidId(pedidoId)
+        && isValidPedido(incoming())
+        && incoming().status == 'novo'
+        && !('autoPrintedAt' in incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidId(pedidoId)
+        && isValidPedido(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'autoPrintedAt', 'updatedAt'])
+        && (
+          !('autoPrintedAt' in incoming()) ||
+          ('autoPrintedAt' in existing() && incoming().autoPrintedAt == existing().autoPrintedAt) ||
+          (!('autoPrintedAt' in existing()) && incoming().autoPrintedAt == request.time)
+        );
+
+      allow delete: if isAdmin() && isValidId(pedidoId);
+    }
+
+    // Admin registry: strictly readable only by the admin themselves (no list enumeration)
+    match /admins/{adminId} {
+      allow get: if isVerifiedUser() && isValidId(adminId) && request.auth.uid == adminId;
+      allow list, create, update, delete: if false;
+    }
+  }
+}
