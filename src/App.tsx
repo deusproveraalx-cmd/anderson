@@ -97,6 +97,10 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [printingOrder, setPrintingOrder] = useState<Order | null>(null);
 
+  const isAdminRoute =
+    typeof window !== 'undefined' &&
+    window.location.pathname.replace(/\/+$/, '') === '/admin';
+
   if (firestoreFatalError) {
     throw firestoreFatalError;
   }
@@ -104,9 +108,12 @@ export default function App() {
   React.useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setAdminUser(user);
+      if (!user && isAdminRoute) {
+        setIsAdminModalOpen(true);
+      }
     });
     return () => unsubscribeAuth();
-  }, []);
+  }, [isAdminRoute]);
 
   React.useEffect(() => {
     const produtosQuery = query(collection(db, 'produtos'), orderBy('createdAt', 'desc'));
@@ -861,7 +868,7 @@ export default function App() {
               type="button"
               onClick={() => {
                 if (adminUser) {
-                  window.location.href = '/';
+                  window.location.href = '/admin';
                 } else {
                   setIsAdminModalOpen(true);
                 }

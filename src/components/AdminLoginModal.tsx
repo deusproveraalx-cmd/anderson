@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
-import { X, Lock, Mail, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebase';
+import { X, Lock, Mail, Eye, EyeOff, Loader2, UserPlus } from 'lucide-react';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+} from 'firebase/auth';
+import { auth, OWNER_EMAIL } from '../firebase';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -16,11 +20,22 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   if (!isOpen) return null;
+
+  const isRegister = mode === 'register';
+
+  const switchMode = (next: 'login' | 'register') => {
+    setMode(next);
+    setErrorMsg('');
+    setPassword('');
+    setConfirmPassword('');
+  };
 
   const mapAuthError = (err: unknown): string => {
     const code =
@@ -33,6 +48,10 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
       case 'auth/user-not-found':
       case 'auth/wrong-password':
         return 'E-mail ou senha incorretos. Verifique os dados e tente novamente.';
+      case 'auth/email-already-in-use':
+        return 'Este e-mail já possui cadastro. Use "Entrar" para acessar.';
+      case 'auth/weak-password':
+        return 'Senha fraca. Use pelo menos 6 caracteres.';
       case 'auth/invalid-email':
         return 'O formato do e-mail informado é inválido.';
       case 'auth/too-many-requests':
@@ -53,11 +72,38 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
       return;
     }
 
+    if (isRegister) {
+      if (email.trim().toLowerCase() !== OWNER_EMAIL) {
+        setErrorMsg(
+          'Este cadastro é só para o proprietário da loja. Atendentes são cadastrados pelo administrador dentro do painel.'
+        );
+        return;
+      }
+      if (password.length < 6) {
+        setErrorMsg('A senha deve ter pelo menos 6 caracteres.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setErrorMsg('As senhas não coincidem.');
+        return;
+      }
+    }
+
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      if (isRegister) {
+        const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        try {
+          await sendEmailVerification(credential.user);
+        } catch {
+          // O painel oferece reenvio da verificação caso este envio falhe.
+        }
+      } else {
+        await signInWithEmailAndPassword(auth, email.trim(), password);
+      }
       setEmail('');
       setPassword('');
+      setConfirmPassword('');
       onLoginSuccess();
       onClose();
     } catch (err) {
@@ -91,10 +137,12 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
           </div>
           <div>
             <h2 id="admin-login-title" className="font-hand text-2xl font-bold text-[#3A150B]">
-              Acesso Administrativo
+              {isRegister ? 'Primeiro acesso do proprietário' : 'Acesso ao Painel'}
             </h2>
             <p className="text-xs text-[#3A150B]/65">
-              Entre para gerenciar os produtos da vitrine
+              {isRegister
+                ? 'Crie a senha da conta do proprietário da loja'
+                : 'Entre para receber e gerenciar os pedidos online'}
             </p>
           </div>
         </div>
@@ -133,7 +181,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               <input
                 id="admin-password"
                 type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
+                autoComplete={isRegister ? 'new-password' : 'current-password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -149,6 +197,36 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
               </button>
             </div>
           </div>
+
+          {isRegister && (
+            <div>
+              <label
+                htmlFor="admin-confirm-password"
+                className="block text-xs font-semibold text-[#3A150B]"
+              >
+                Confirmar senha
+              </label>
+              <div className="relative mt-1">
+                <Lock
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#3A150B]/45"
+                  aria-hidden="true"
+                />
+                <input
+                  id="admin-confirm-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repita a senha"
+                  className="w-full rounded-xl border border-[#3A150B]/15 bg-white py-2.5 pl-9 pr-3 text-sm text-[#3A150B] placeholder:text-[#3A150B]/40 focus:border-[#D81B60] focus:outline-none"
+                />
+              </div>
+              <p className="mt-2 text-[11px] leading-snug text-[#3A150B]/60">
+                Enviaremos um e-mail de verificação. O acesso ao painel só é liberado para
+                e-mails verificados e autorizados pela loja.
+              </p>
+            </div>
+          )}
 
           {errorMsg && (
             <p
@@ -167,12 +245,35 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             {isLoading ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Entrando...
+                {isRegister ? 'Cadastrando...' : 'Entrando...'}
+              </>
+            ) : isRegister ? (
+              <>
+                <UserPlus className="h-4 w-4" aria-hidden="true" />
+                Criar cadastro
               </>
             ) : (
               'Entrar no Painel'
             )}
           </button>
+
+          <div className="space-y-1.5 text-center text-xs text-[#3A150B]/70">
+            {!isRegister && (
+              <p>
+                Atendente? Peça ao administrador da loja para cadastrar seu e-mail e senha.
+              </p>
+            )}
+            <p>
+              {isRegister ? 'Já criou a conta?' : 'É o proprietário e ainda não criou a conta?'}{' '}
+              <button
+                type="button"
+                onClick={() => switchMode(isRegister ? 'login' : 'register')}
+                className="font-semibold text-[#D81B60] underline-offset-2 hover:underline"
+              >
+                {isRegister ? 'Entrar' : 'Primeiro acesso'}
+              </button>
+            </p>
+          </div>
         </form>
       </div>
     </div>

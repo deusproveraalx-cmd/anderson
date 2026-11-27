@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import {
   LogOut,
   Plus,
@@ -22,6 +23,7 @@ import {
   MapPin,
   Store,
   ExternalLink,
+  Users,
 } from 'lucide-react';
 import { User, signOut, sendEmailVerification } from 'firebase/auth';
 import {
@@ -30,14 +32,16 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
 } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { auth, db, handleFirestoreError, OperationType, OWNER_EMAIL } from '../firebase';
 import { Order, OrderItem, OrderStatus, Product, ProductCategory } from '../data/products';
 import { formatBRL } from './CartDrawer';
+import { TeamManager } from './TeamManager';
 
 interface AdminPanelProps {
   user: User;
@@ -45,7 +49,8 @@ interface AdminPanelProps {
   onRequestPrintOrder: (order: Order) => void;
 }
 
-type AdminTab = 'produtos' | 'pedidos';
+type AdminTab = 'produtos' | 'pedidos' | 'equipe';
+type StaffAccess = 'checking' | 'active' | 'inactive';
 type OrderFilter = 'todos' | OrderStatus;
 
 const CATEGORY_OPTIONS: Exclude<ProductCategory, 'Todos'>[] = [
@@ -54,6 +59,7 @@ const CATEGORY_OPTIONS: Exclude<ProductCategory, 'Todos'>[] = [
   'Cupcakes & Potes',
 ];
 
+const AUTO_PRINT_STORAGE_KEY = 'delicia-esther:auto-print';
 const MAX_IMAGE_WIDTH = 600;
 const JPEG_QUALITY = 0.7;
 const MAX_BASE64_LENGTH = 450000;
@@ -129,6 +135,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('pedidos');
 
+  const isOwnerAccount = user.email?.toLowerCase() === OWNER_EMAIL;
+  const isOwner = isOwnerAccount && user.emailVerified;
+  const [staffAccess, setStaffAccess] = useState<StaffAccess>(
+    isOwnerAccount ? 'inactive' : 'checking'
+  );
+  const canAccess = isOwner || staffAccess === 'active';
+
+  // Atendentes: o acesso vem do cadastro feito pelo proprietário (coleção "admins")
+  useEffect(() => {
+    if (isOwnerAccount) return;
+    let cancelled = false;
+    getDoc(doc(db, 'admins', user.uid))
+      .then((snap) => {
+        if (!cancelled) setStaffAccess(snap.exists() && snap.data().ativo === true ? 'active' : 'inactive');
+      })
+      .catch(() => {
+        if (!cancelled) setStaffAccess('inactive');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwnerAccount, user.uid]);
+
   // Product form states
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [nome, setNome] = useState('');
@@ -151,7 +180,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [orderFilter, setOrderFilter] = useState<OrderFilter>('todos');
-  const [autoPrintEnabled, setAutoPrintEnabled] = useState(false);
+  const [autoPrintEnabled, setAutoPrintEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem(AUTO_PRINT_STORAGE_KEY) !== 'false';
+  });
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [orderActionMessage, setOrderActionMessage] = useState<string | null>(null);
 
@@ -164,8 +196,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const autoPrintedOrderIdsRef = useRef<Set<string>>(new Set());
   const autoPrintedLocalTimesRef = useRef<Map<string, number>>(new Map());
 
+  const printQueueRef = useRef<Order[]>([]);
+  const isPrintingRef = useRef(false);
+  const onRequestPrintOrderRef = useRef(onRequestPrintOrder);
+  onRequestPrintOrderRef.current = onRequestPrintOrder;
+
   useEffect(() => {
     autoPrintEnabledRef.current = autoPrintEnabled;
+    window.localStorage.setItem(AUTO_PRINT_STORAGE_KEY, String(autoPrintEnabled));
   }, [autoPrintEnabled]);
 
   const loadCommercialVoiceUrl = useCallback(async (): Promise<string | null> => {
@@ -278,14 +316,38 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     })();
   }, [loadCommercialVoiceUrl, speakBrowserFallback]);
 
+  // Prints queued receipts one at a time so each new order gets its own coupon,
+  // even when several orders arrive in the same Firestore snapshot.
+  const processPrintQueue = useCallback(() => {
+    if (isPrintingRef.current) return;
+    const nextOrder = printQueueRef.current.shift();
+    if (!nextOrder) return;
+
+    isPrintingRef.current = true;
+    flushSync(() => onRequestPrintOrderRef.current(nextOrder));
+
+    const finishPrint = () => {
+      if (!isPrintingRef.current) return;
+      isPrintingRef.current = false;
+      window.setTimeout(processPrintQueue, 400);
+    };
+
+    window.addEventListener('afterprint', finishPrint, { once: true });
+    window.requestAnimationFrame(() => {
+      window.print();
+      const supportsAfterPrint = 'onafterprint' in window;
+      if (!supportsAfterPrint) {
+        setTimeout(finishPrint, 1500);
+      }
+    });
+  }, []);
+
   const triggerPrintReceipt = useCallback(
     (order: Order) => {
-      onRequestPrintOrder(order);
-      setTimeout(() => {
-        window.print();
-      }, 160);
+      printQueueRef.current.push(order);
+      processPrintQueue();
     },
-    [onRequestPrintOrder]
+    [processPrintQueue]
   );
 
   const handleTestPrint = useCallback(() => {
@@ -318,7 +380,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Real-time onSnapshot listener on Firestore collection 'pedidos'
   useEffect(() => {
-    if (!user.emailVerified) {
+    if (!canAccess) {
       setIsLoadingOrders(false);
       return;
     }
@@ -398,35 +460,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           playOrderBellChime();
 
           if (autoPrintEnabledRef.current) {
-            const nextOrderToPrint = newlyArrivedNewOrders.find(
-              (o) => !autoPrintedOrderIdsRef.current.has(o.id)
-            );
-            if (nextOrderToPrint) {
+            const ordersToPrint = newlyArrivedNewOrders
+              .filter((o) => !autoPrintedOrderIdsRef.current.has(o.id) && !o.autoPrintedAtMs)
+              .sort((a, b) => a.createdAtMs - b.createdAtMs);
+
+            ordersToPrint.forEach((o) => {
               const printedNowMs = Date.now();
-              newlyArrivedNewOrders.forEach((o) => {
-                if (!autoPrintedOrderIdsRef.current.has(o.id)) {
-                  autoPrintedOrderIdsRef.current.add(o.id);
-                  autoPrintedLocalTimesRef.current.set(o.id, printedNowMs);
-                  void updateDoc(doc(db, 'pedidos', o.id), {
-                    status: 'em_preparo',
-                    autoPrintedAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                  }).catch((err) => {
-                    try {
-                      handleFirestoreError(err, OperationType.UPDATE, `pedidos/${o.id}`);
-                    } catch (wrapped) {
-                      setFatalError(wrapped as Error);
-                    }
-                  });
+              autoPrintedOrderIdsRef.current.add(o.id);
+              autoPrintedLocalTimesRef.current.set(o.id, printedNowMs);
+              void updateDoc(doc(db, 'pedidos', o.id), {
+                status: 'em_preparo',
+                autoPrintedAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              }).catch((err) => {
+                try {
+                  handleFirestoreError(err, OperationType.UPDATE, `pedidos/${o.id}`);
+                } catch (wrapped) {
+                  setFatalError(wrapped as Error);
                 }
               });
 
               triggerPrintReceipt({
-                ...nextOrderToPrint,
+                ...o,
                 status: 'em_preparo',
                 autoPrintedAtMs: printedNowMs,
               });
-            }
+            });
           }
         }
       },
@@ -441,7 +500,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     );
 
     return () => unsubscribeOrders();
-  }, [user.emailVerified, playOrderBellChime, triggerPrintReceipt]);
+  }, [canAccess, playOrderBellChime, triggerPrintReceipt]);
 
   if (fatalError) {
     throw fatalError;
@@ -726,7 +785,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               }`}
             >
               <ClipboardList className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>Pedidos / Notificações</span>
+              <span>Pedidos Online</span>
               {pendingOrders.length > 0 && (
                 <span
                   className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-xs font-extrabold tabular-nums ${
@@ -740,18 +799,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               )}
             </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('produtos')}
-              className={`inline-flex min-h-[40px] items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors sm:text-sm ${
-                activeTab === 'produtos'
-                  ? 'bg-[#D81B60] text-white shadow-sm'
-                  : 'border border-[#3A150B]/15 bg-[#FFF8FB] text-[#3A150B] hover:bg-[#FCEEF2]'
-              }`}
-            >
-              <Package className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>Gerenciar Produtos ({products.length})</span>
-            </button>
+            {isOwner && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('produtos')}
+                  className={`inline-flex min-h-[40px] items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors sm:text-sm ${
+                    activeTab === 'produtos'
+                      ? 'bg-[#D81B60] text-white shadow-sm'
+                      : 'border border-[#3A150B]/15 bg-[#FFF8FB] text-[#3A150B] hover:bg-[#FCEEF2]'
+                  }`}
+                >
+                  <Package className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Gerenciar Produtos ({products.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('equipe')}
+                  className={`inline-flex min-h-[40px] items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors sm:text-sm ${
+                    activeTab === 'equipe'
+                      ? 'bg-[#D81B60] text-white shadow-sm'
+                      : 'border border-[#3A150B]/15 bg-[#FFF8FB] text-[#3A150B] hover:bg-[#FCEEF2]'
+                  }`}
+                >
+                  <Users className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>Equipe</span>
+                </button>
+              </>
+            )}
           </nav>
 
           {/* 3. Actions: Ver Loja (new tab) + Sair (Logout) */}
@@ -781,7 +857,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       <main className="mx-auto max-w-[1280px] px-4 py-6 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-[#D81B60]/20 bg-white p-5 shadow-sm sm:p-7">
           {/* Email verification notice if unverified */}
-          {!user.emailVerified && (
+          {isOwnerAccount && !user.emailVerified && (
             <div className="mb-6 flex flex-col gap-3 rounded-xl border border-[#F59E0B]/40 bg-[#FFFBEB] p-4 text-xs text-[#92400E] sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-start gap-2.5">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#D97706]" aria-hidden="true" />
@@ -988,9 +1064,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               )}
 
               {/* Orders List */}
-              {!user.emailVerified ? (
+              {staffAccess === 'checking' && !isOwnerAccount ? (
+                <div className="flex items-center justify-center gap-2.5 rounded-2xl border border-[#3A150B]/10 bg-[#FFF8FB] p-10 text-sm font-medium text-[#3A150B]/75">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#D81B60]" aria-hidden="true" />
+                  <span>Verificando seu acesso...</span>
+                </div>
+              ) : !canAccess ? (
                 <div className="rounded-2xl border border-[#3A150B]/10 bg-[#FFF8FB] p-8 text-center text-sm text-[#3A150B]/75">
-                  Verifique seu e-mail de administrador acima para visualizar os pedidos em tempo real.
+                  {isOwnerAccount
+                    ? 'Verifique seu e-mail de administrador acima para visualizar os pedidos em tempo real.'
+                    : 'Seu acesso não está liberado ou foi desativado. Fale com o administrador da loja.'}
                 </div>
               ) : isLoadingOrders ? (
                 <div className="flex items-center justify-center gap-2.5 rounded-2xl border border-[#3A150B]/10 bg-[#FFF8FB] p-10 text-sm font-medium text-[#3A150B]/75">
@@ -1205,7 +1288,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           )}
 
           {/* TAB 2: PRODUCTS MANAGEMENT */}
-          {activeTab === 'produtos' && (
+          {activeTab === 'equipe' && isOwner && <TeamManager ownerUid={user.uid} />}
+
+          {activeTab === 'produtos' && isOwner && (
             <>
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="flex items-center justify-between">
