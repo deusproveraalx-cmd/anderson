@@ -143,7 +143,7 @@ export const CustomOrderSection: React.FC<CustomOrderSectionProps> = ({
 
   return (
     <section id="encomendas" className="border-y border-[#3A1810]/10 bg-[#FCEEF2]/65 py-14 md:py-16">
-      <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 lg:px-8">
         <div className="rounded-2xl border border-[#3A1810]/10 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#D81B60]">
             <CalendarHeart className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -359,7 +359,7 @@ export const CustomOrderSection: React.FC<CustomOrderSectionProps> = ({
             )}
 
             {/* Summary & CTAs */}
-            <div className="flex flex-col gap-3 border-t border-[#3A1810]/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="caixa-flex border-t border-[#3A1810]/10 pt-5 md:items-center md:justify-between">
               <div>
                 <span className="block text-xs text-[#3A1810]/65">
                   Valor estimado ({selectedWeight.label} a {formatBRL(pricePerKg)}/kg

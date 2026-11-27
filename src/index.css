@@ -8,6 +8,16 @@
 }
 
 @layer base {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
   body {
     font-family: var(--font-sans);
     background-color: #FFE6F0;
@@ -39,6 +49,19 @@
     -1.5px  1.5px 0 #ffffff,
      1.5px  1.5px 0 #ffffff,
      0px  2px 5px rgba(74, 28, 16, 0.18);
+}
+
+/* Estilo padrão (PC) */
+.caixa-flex {
+  display: flex;
+  gap: 20px;
+}
+
+/* Ajuste para telas de celular (menores que 768px) */
+@media (max-width: 768px) {
+  .caixa-flex {
+    flex-direction: column;
+  }
 }
 
 @keyframes christmas-snowfall {

@@ -427,10 +427,10 @@ export default function App() {
           )}
         </div>
       ) : (
-        <div className="min-h-screen bg-[#FFF0F6] pb-20 text-[#3A150B] lg:pb-0 print:hidden">
+        <div className="min-h-screen overflow-x-hidden bg-[#FFF0F6] pb-20 text-[#3A150B] lg:pb-0 print:hidden">
       {/* TOP BAR: Dark Chocolate Gradient Bar matching the image */}
       <header className="sticky top-0 z-40 border-b-2 border-[#D99B52]/70 bg-gradient-to-b from-[#4F2012] via-[#3A140A] to-[#491D10] shadow-md">
-        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-16 w-full max-w-[1100px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           {/* Top-Left Scalloped Crest Logo */}
           <a
             href="#inicio"
@@ -591,265 +591,218 @@ export default function App() {
             }}
           />
 
-          <div className="relative z-10 mx-auto max-w-[1200px] px-4 pt-6 pb-6 sm:px-6 lg:px-8 lg:pt-8">
-            {/* Aligned 2-Column Hero Composition */}
-            <div className="grid items-stretch gap-6 lg:grid-cols-12 lg:gap-8">
-              {/* LEFT: Brand Emblem Crest + Highlights */}
-              <div className="flex flex-col items-center justify-between text-center lg:col-span-4">
-                <div className="relative w-full max-w-[360px] rounded-[40px] border-2 border-[#E6A84C] bg-[#FFF8F6]/94 px-5 pt-9 pb-5 shadow-[0_14px_34px_rgba(74,28,16,0.2)]">
-                  {/* Overlapping Chef Hat */}
-                  <div className="absolute -top-8 left-3 h-18 w-22 -rotate-12 drop-shadow-md">
-                    <ChefHatSvg className="h-full w-full" />
-                  </div>
-
-                  {/* Script Brand Title */}
-                  <div className="pl-6">
-                    <p className="font-hand text-3xl font-bold leading-none text-[#4A1C10] text-outline-white sm:text-4xl">
-                      Delícia da
-                    </p>
-                    <h1 className="font-script -mt-1 text-5xl leading-tight text-[#E91E63] text-outline-white sm:text-[3.35rem]">
-                      Esther
+          <div className="relative z-10 mx-auto w-full max-w-[1100px] px-4 pt-6 pb-6 sm:px-6 lg:px-8 lg:pt-8">
+            {/* Vitrine Interativa em Destaque (Largura total alinhada) */}
+            <div className="flex min-w-0 w-full flex-col justify-between rounded-3xl border-2 border-white/95 bg-white/92 p-4 shadow-[0_14px_34px_rgba(173,20,87,0.16)] backdrop-blur-sm sm:p-6">
+              <div className="min-w-0 w-full">
+                {/* Top Row: Title + Quick Search + Full Catalog Link */}
+                <div className="caixa-flex md:items-center md:justify-between">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <h1 className="font-hand text-2xl font-bold text-[#4A1C10] sm:text-3xl">
+                      Vitrine em Destaque
                     </h1>
+                    <a
+                      href="#produtos"
+                      className="text-xs font-bold text-[#D81B60] underline underline-offset-2 hover:text-[#AD1457] md:hidden whitespace-nowrap"
+                    >
+                      Ver tudo ({allCatalogProducts.length})
+                    </a>
                   </div>
 
-                  {/* Satin Chocolate-Gold Ribbon */}
-                  <div className="relative -mx-7 mt-2 rounded-lg border-y-2 border-[#F0B85A] bg-gradient-to-r from-[#5A2411] via-[#8F471C] to-[#5A2411] py-1.5 px-4 shadow-md">
-                    <div className="flex items-center justify-center gap-2 text-white">
-                      <span className="text-[#FDE68A]" aria-hidden="true">♥</span>
-                      <span className="font-hand text-2xl font-bold tracking-wide sm:text-3xl">
-                        Bolos e Doces
-                      </span>
-                      <span className="text-[#FDE68A]" aria-hidden="true">♥</span>
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-1 md:w-64 md:flex-none">
+                      <Search
+                        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#3A150B]/45"
+                        aria-hidden="true"
+                      />
+                      <input
+                        type="search"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="O que você procura?"
+                        aria-label="Buscar produto na vitrine"
+                        className="min-h-[38px] w-full rounded-xl border border-[#D81B60]/25 bg-white pl-9 pr-3 text-xs font-medium text-[#3A150B] placeholder:text-[#3A150B]/45 focus:border-[#D81B60] focus:outline-none"
+                      />
                     </div>
-                  </div>
-
-                  {/* Tagline inside medallion */}
-                  <p className="mt-3 font-hand text-xl font-bold leading-snug text-[#4A1C10]">
-                    Feito com amor para adoçar sua vida!
-                  </p>
-                  <div className="mt-1.5 flex items-center justify-center gap-2 text-[#E11D67]">
-                    <span className="h-[1.5px] w-12 bg-[#E11D67]/60" />
-                    <Heart className="h-4 w-4 fill-[#E11D67]/20" aria-hidden="true" />
-                    <span className="h-[1.5px] w-12 bg-[#E11D67]/60" />
+                    <a
+                      href="#produtos"
+                      className="hidden text-xs font-bold text-[#D81B60] underline underline-offset-2 hover:text-[#AD1457] md:inline whitespace-nowrap"
+                    >
+                      Ver tudo ({allCatalogProducts.length})
+                    </a>
                   </div>
                 </div>
 
-                {/* Desktop & Mobile Highlights */}
-                <ul className="mt-4 grid w-full max-w-[360px] grid-cols-2 gap-x-3 gap-y-2 rounded-2xl border border-white/80 bg-white/80 px-4 py-3 text-left shadow-sm">
-                  {[
-                    'Bolos artesanais',
-                    'Doces variados',
-                    'Taças especiais',
-                    'Combos para festas',
-                  ].map((text) => (
-                    <li
-                      key={text}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-[#3A150B]"
-                    >
-                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#E11D67] text-white">
-                        <Check className="h-2.5 w-2.5 stroke-[3]" aria-hidden="true" />
-                      </span>
-                      <span className="truncate">{text}</span>
-                    </li>
-                  ))}
-                </ul>
+                {/* Category Filter Tabs right inside Vitrine */}
+                <div
+                  className="mt-3 flex w-full max-w-full items-center gap-1.5 overflow-x-auto rounded-xl bg-[#FCEEF2] p-1"
+                  role="tablist"
+                  aria-label="Filtrar vitrine por categoria"
+                >
+                  {CATEGORIES.map((category) => {
+                    const count =
+                      category === 'Todos'
+                        ? allCatalogProducts.length
+                        : allCatalogProducts.filter((p) => p.category === category).length;
+                    return (
+                      <button
+                        key={`hero-${category}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={selectedCategory === category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`min-h-[34px] shrink-0 rounded-lg px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors ${
+                          selectedCategory === category
+                            ? 'bg-[#D81B60] text-white shadow-sm'
+                            : 'text-[#3A150B]/75 hover:text-[#3A150B]'
+                        }`}
+                      >
+                        {category} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
 
-                {/* Mobile Quick-Access Buttons right below logo */}
-                <div className="mt-3 flex w-full max-w-[360px] flex-wrap items-center justify-center gap-2 lg:hidden">
+                {/* Product Cards Grid */}
+                {isLoadingProducts ? (
+                  <div className="mt-4 flex min-h-[240px] items-center justify-center gap-2 rounded-2xl border border-[#D81B60]/15 bg-white px-4 py-8 text-xs font-semibold text-[#3A150B]/70">
+                    <Loader2 className="h-4 w-4 animate-spin text-[#D81B60]" aria-hidden="true" />
+                    <span>Carregando vitrine...</span>
+                  </div>
+                ) : allCatalogProducts.length === 0 ? (
+                  <div className="mt-4 flex min-h-[240px] items-center justify-center rounded-2xl border border-[#D81B60]/15 bg-white px-5 py-8 text-center">
+                    <p className="text-sm font-medium text-[#3A150B]/75">
+                      Em breve novidades na vitrine
+                    </p>
+                  </div>
+                ) : filteredProducts.length === 0 ? (
+                  <div className="mt-4 flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-[#D81B60]/15 bg-white px-5 py-8 text-center">
+                    <p className="text-sm font-semibold text-[#3A150B]">
+                      Nenhum item encontrado para essa busca.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory('Todos');
+                        setSearchQuery('');
+                      }}
+                      className="mt-3 inline-flex min-h-[36px] items-center justify-center rounded-lg bg-[#D81B60] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#AD1457]"
+                    >
+                      Mostrar todos os produtos
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:gap-4">
+                    {filteredProducts.slice(0, 6).map((product) => {
+                      const isContain =
+                        product.category === 'Combos para Festas' || product.category === 'Taças';
+                      return (
+                        <div
+                          key={`hero-card-${product.id}`}
+                          className="group flex h-full flex-col justify-between overflow-hidden rounded-xl border border-[#D81B60]/20 bg-white p-2 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#D81B60] hover:shadow-md sm:p-2.5"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setActiveProduct(product)}
+                            className="text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D81B60]"
+                            aria-label={`Ver ${product.name}`}
+                          >
+                            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-white">
+                              <img
+                                src={product.image}
+                                alt={product.name}
+                                referrerPolicy="no-referrer"
+                                className={`h-full w-full transition-transform duration-300 group-hover:scale-105 ${
+                                  isContain ? 'object-contain' : 'object-cover'
+                                }`}
+                              />
+                              {product.category === 'Taças' && (
+                                <span className="pointer-events-none absolute inset-x-1 bottom-1 rounded bg-[#260E09]/80 px-1 py-0.5 text-center text-[8px] font-bold tracking-wide text-white uppercase">
+                                  Imagens ilustrativas
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1.5 truncate text-xs font-bold text-[#3A150B] sm:text-sm">
+                              {product.name}
+                            </p>
+                          </button>
+
+                          <div className="mt-1.5 flex items-center justify-between gap-1.5 border-t border-[#3A150B]/10 pt-1.5">
+                            <span className="text-xs font-extrabold tabular-nums text-[#D81B60] sm:text-sm">
+                              {formatBRL(product.price)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleAddToCart(
+                                  product,
+                                  product.category === 'Taças'
+                                    ? 'Montada conforme descrição'
+                                    : product.flavors[0] ?? 'Tradicional',
+                                  1
+                                )
+                              }
+                              className="inline-flex min-h-[30px] items-center gap-1 rounded-lg bg-[#D81B60] px-2.5 py-1 text-[10px] font-bold text-white transition-colors hover:bg-[#AD1457] sm:text-xs whitespace-nowrap"
+                            >
+                              <Plus className="h-3 w-3 shrink-0" aria-hidden="true" />
+                              Pedir
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {filteredProducts.length > 6 && (
+                <div className="mt-3 flex justify-end">
                   <a
                     href="#produtos"
-                    onClick={() => setSelectedCategory('Todos')}
-                    className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#D81B60] px-3.5 py-2 text-xs font-bold text-white shadow-md transition-colors hover:bg-[#AD1457] whitespace-nowrap"
+                    className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg bg-[#FCEEF2] px-3 py-1 text-xs font-bold text-[#D81B60] transition-colors hover:bg-[#F9D7E5]"
                   >
-                    <Cake className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    Ver Produtos ({allCatalogProducts.length})
-                  </a>
-                  <a
-                    href="#agenda"
-                    className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#D81B60]/35 bg-white px-3.5 py-2 text-xs font-bold text-[#D81B60] shadow-sm transition-colors hover:bg-[#FCEEF2] whitespace-nowrap"
-                  >
-                    <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    Onde Estamos
+                    Ver mais {filteredProducts.length - 6} produtos abaixo
                   </a>
                 </div>
-              </div>
+              )}
+            </div>
 
-              {/* RIGHT: Vitrine Interativa com Busca e Filtros Rápidos */}
-              <div className="flex flex-col lg:col-span-8">
-                <div className="flex h-full flex-col justify-between rounded-3xl border-2 border-white/95 bg-white/92 p-4 shadow-[0_14px_34px_rgba(173,20,87,0.16)] backdrop-blur-sm sm:p-5">
-                  <div>
-                    {/* Top Row: Title + Quick Search + Full Catalog Link */}
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <h2 className="font-hand text-2xl font-bold text-[#4A1C10] sm:text-3xl">
-                          Vitrine em Destaque
-                        </h2>
-                        <a
-                          href="#produtos"
-                          className="text-xs font-bold text-[#D81B60] underline underline-offset-2 hover:text-[#AD1457] sm:hidden whitespace-nowrap"
-                        >
-                          Ver tudo ({allCatalogProducts.length})
-                        </a>
-                      </div>
+            {/* Highlights & Mobile Quick-Access */}
+            <ul className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 rounded-2xl border border-white/80 bg-white/85 px-4 py-3 shadow-sm sm:grid-cols-4">
+              {[
+                'Bolos artesanais',
+                'Doces variados',
+                'Taças especiais',
+                'Combos para festas',
+              ].map((text) => (
+                <li
+                  key={text}
+                  className="flex items-center justify-center gap-1.5 text-xs font-semibold text-[#3A150B]"
+                >
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#E11D67] text-white">
+                    <Check className="h-2.5 w-2.5 stroke-[3]" aria-hidden="true" />
+                  </span>
+                  <span className="truncate">{text}</span>
+                </li>
+              ))}
+            </ul>
 
-                      <div className="flex items-center gap-3">
-                        <div className="relative flex-1 sm:w-60 sm:flex-none">
-                          <Search
-                            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#3A150B]/45"
-                            aria-hidden="true"
-                          />
-                          <input
-                            type="search"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="O que você procura?"
-                            aria-label="Buscar produto na vitrine"
-                            className="min-h-[38px] w-full rounded-xl border border-[#D81B60]/25 bg-white pl-9 pr-3 text-xs font-medium text-[#3A150B] placeholder:text-[#3A150B]/45 focus:border-[#D81B60] focus:outline-none"
-                          />
-                        </div>
-                        <a
-                          href="#produtos"
-                          className="hidden text-xs font-bold text-[#D81B60] underline underline-offset-2 hover:text-[#AD1457] sm:inline whitespace-nowrap"
-                        >
-                          Ver tudo ({allCatalogProducts.length})
-                        </a>
-                      </div>
-                    </div>
-
-                    {/* Category Filter Tabs right inside Vitrine */}
-                    <div
-                      className="mt-3 flex items-center gap-1.5 overflow-x-auto rounded-xl bg-[#FCEEF2] p-1"
-                      role="tablist"
-                      aria-label="Filtrar vitrine por categoria"
-                    >
-                      {CATEGORIES.map((category) => {
-                        const count =
-                          category === 'Todos'
-                            ? allCatalogProducts.length
-                            : allCatalogProducts.filter((p) => p.category === category).length;
-                        return (
-                          <button
-                            key={`hero-${category}`}
-                            type="button"
-                            role="tab"
-                            aria-selected={selectedCategory === category}
-                            onClick={() => setSelectedCategory(category)}
-                            className={`min-h-[34px] shrink-0 rounded-lg px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors ${
-                              selectedCategory === category
-                                ? 'bg-[#D81B60] text-white shadow-sm'
-                                : 'text-[#3A150B]/75 hover:text-[#3A150B]'
-                            }`}
-                          >
-                            {category} ({count})
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Product Cards Grid */}
-                    {isLoadingProducts ? (
-                      <div className="mt-4 flex min-h-[240px] items-center justify-center gap-2 rounded-2xl border border-[#D81B60]/15 bg-white px-4 py-8 text-xs font-semibold text-[#3A150B]/70">
-                        <Loader2 className="h-4 w-4 animate-spin text-[#D81B60]" aria-hidden="true" />
-                        <span>Carregando vitrine...</span>
-                      </div>
-                    ) : allCatalogProducts.length === 0 ? (
-                      <div className="mt-4 flex min-h-[240px] items-center justify-center rounded-2xl border border-[#D81B60]/15 bg-white px-5 py-8 text-center">
-                        <p className="text-sm font-medium text-[#3A150B]/75">
-                          Em breve novidades na vitrine
-                        </p>
-                      </div>
-                    ) : filteredProducts.length === 0 ? (
-                      <div className="mt-4 flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-[#D81B60]/15 bg-white px-5 py-8 text-center">
-                        <p className="text-sm font-semibold text-[#3A150B]">
-                          Nenhum item encontrado para essa busca.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedCategory('Todos');
-                            setSearchQuery('');
-                          }}
-                          className="mt-3 inline-flex min-h-[36px] items-center justify-center rounded-lg bg-[#D81B60] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#AD1457]"
-                        >
-                          Mostrar todos os produtos
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="mt-3.5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {filteredProducts.slice(0, 6).map((product) => {
-                          const isContain =
-                            product.category === 'Combos para Festas' || product.category === 'Taças';
-                          return (
-                            <div
-                              key={`hero-card-${product.id}`}
-                              className="group flex h-full flex-col justify-between overflow-hidden rounded-xl border border-[#D81B60]/20 bg-white p-2 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#D81B60] hover:shadow-md"
-                            >
-                              <button
-                                type="button"
-                                onClick={() => setActiveProduct(product)}
-                                className="text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D81B60]"
-                                aria-label={`Ver ${product.name}`}
-                              >
-                                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-white">
-                                  <img
-                                    src={product.image}
-                                    alt={product.name}
-                                    referrerPolicy="no-referrer"
-                                    className={`h-full w-full transition-transform duration-300 group-hover:scale-105 ${
-                                      isContain ? 'object-contain' : 'object-cover'
-                                    }`}
-                                  />
-                                  {product.category === 'Taças' && (
-                                    <span className="pointer-events-none absolute inset-x-1 bottom-1 rounded bg-[#260E09]/80 px-1 py-0.5 text-center text-[8px] font-bold tracking-wide text-white uppercase">
-                                      Imagens ilustrativas
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="mt-1.5 truncate text-xs font-bold text-[#3A150B]">
-                                  {product.name}
-                                </p>
-                              </button>
-
-                              <div className="mt-1.5 flex items-center justify-between gap-1.5 border-t border-[#3A150B]/10 pt-1.5">
-                                <span className="text-xs font-extrabold tabular-nums text-[#D81B60]">
-                                  {formatBRL(product.price)}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleAddToCart(
-                                      product,
-                                      product.category === 'Taças'
-                                        ? 'Montada conforme descrição'
-                                        : product.flavors[0] ?? 'Tradicional',
-                                      1
-                                    )
-                                  }
-                                  className="inline-flex min-h-[28px] items-center gap-1 rounded-lg bg-[#D81B60] px-2 py-1 text-[10px] font-bold text-white transition-colors hover:bg-[#AD1457] whitespace-nowrap"
-                                >
-                                  <Plus className="h-3 w-3 shrink-0" aria-hidden="true" />
-                                  Pedir
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {filteredProducts.length > 6 && (
-                    <div className="mt-3 flex justify-end">
-                      <a
-                        href="#produtos"
-                        className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg bg-[#FCEEF2] px-3 py-1 text-xs font-bold text-[#D81B60] transition-colors hover:bg-[#F9D7E5]"
-                      >
-                        Ver mais {filteredProducts.length - 6} produtos abaixo
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 lg:hidden">
+              <a
+                href="#produtos"
+                onClick={() => setSelectedCategory('Todos')}
+                className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl bg-[#D81B60] px-3 py-2 text-xs font-bold text-white shadow-md transition-colors hover:bg-[#AD1457] whitespace-nowrap"
+              >
+                <Cake className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Ver Produtos ({allCatalogProducts.length})
+              </a>
+              <a
+                href="#agenda"
+                className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-[#D81B60]/35 bg-white px-3 py-2 text-xs font-bold text-[#D81B60] shadow-sm transition-colors hover:bg-[#FCEEF2] whitespace-nowrap"
+              >
+                <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Onde Estamos
+              </a>
             </div>
 
             {/* MIDDLE SOFT PINK PILL BAR (5 Service Pillars) */}
@@ -905,8 +858,8 @@ export default function App() {
 
           {/* CURVED CHOCOLATE FOOTER BAR matching the bottom of the image */}
           <div className="relative z-10 mt-4 border-t-2 border-[#D99B52] bg-gradient-to-r from-[#3D150A] via-[#592313] to-[#3D150A] py-3.5 text-white shadow-inner">
-            <div className="mx-auto flex max-w-[1200px] flex-col items-center justify-between gap-3 px-4 sm:px-6 lg:flex-row lg:px-8">
-              <p className="font-hand text-2xl font-bold tracking-wide text-white sm:text-[1.65rem]">
+            <div className="caixa-flex mx-auto w-full max-w-[1100px] items-center justify-between px-4 sm:px-6 lg:px-8">
+              <p className="text-center font-hand text-2xl font-bold tracking-wide text-white sm:text-[1.65rem] md:text-left">
                 ♡ Delícia da Esther – Sempre com você! ♡
               </p>
 
@@ -939,8 +892,8 @@ export default function App() {
 
         {/* INTERACTIVE FULL CATALOG ("Nossos Produtos" - Placed right after Hero for quick product finding) */}
         <section id="produtos" className="bg-[#FFF8FB] py-10 sm:py-14">
-          <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 lg:px-8">
+            <div className="caixa-flex md:items-end md:justify-between">
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold text-[#D81B60]">
@@ -986,9 +939,9 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex min-w-0 w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
                 <div
-                  className="flex items-center gap-1.5 overflow-x-auto rounded-xl bg-[#FCEEF2] p-1 sm:flex-wrap"
+                  className="flex w-full max-w-full items-center gap-1.5 overflow-x-auto rounded-xl bg-[#FCEEF2] p-1 sm:w-auto sm:flex-wrap"
                   role="tablist"
                   aria-label="Filtrar produtos por categoria"
                 >
@@ -1014,21 +967,6 @@ export default function App() {
                       </button>
                     );
                   })}
-                </div>
-
-                <div className="relative">
-                  <Search
-                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#3A150B]/45"
-                    aria-hidden="true"
-                  />
-                  <input
-                    type="search"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Buscar bolo, doce, taça ou combo..."
-                    aria-label="Buscar produto"
-                    className="min-h-[42px] w-full rounded-xl border border-[#D81B60]/20 bg-white pl-9 pr-3 text-sm text-[#3A150B] placeholder:text-[#3A150B]/45 focus:border-[#D81B60] focus:outline-none sm:w-64"
-                  />
                 </div>
               </div>
             </div>
@@ -1210,7 +1148,7 @@ export default function App() {
                           </p>
                         </div>
 
-                        <div className="mt-3 flex flex-col gap-2 border-t border-[#3A150B]/10 pt-2.5 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:pt-4">
+                        <div className="mt-3 flex flex-col gap-2 border-t border-[#3A150B]/10 pt-2.5 md:mt-5 md:flex-row md:items-center md:justify-between md:pt-4">
                           <span className="text-sm font-extrabold tabular-nums text-[#D81B60] sm:text-base sm:text-[#3A150B]">
                             {formatBRL(product.price)}
                           </span>
@@ -1252,8 +1190,8 @@ export default function App() {
 
         {/* COMBOS PARA FESTAS (Exclusively from Firestore 'produtos' with category 'Combos para Festas') */}
         <section id="combos" className="border-t border-[#D81B60]/15 bg-gradient-to-b from-[#FFF0F6] to-[#FFF8FB] py-14">
-          <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 lg:px-8">
+            <div className="caixa-flex md:items-end md:justify-between">
               <div>
                 <p className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D81B60]">
                   <PartyPopper className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -1350,7 +1288,7 @@ export default function App() {
                         </p>
                       </div>
 
-                      <div className="mt-3 flex flex-col gap-2 border-t border-[#3A150B]/10 pt-2.5 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:pt-4">
+                      <div className="mt-3 flex flex-col gap-2 border-t border-[#3A150B]/10 pt-2.5 md:mt-5 md:flex-row md:items-center md:justify-between md:pt-4">
                         <span className="text-base font-extrabold tabular-nums text-[#D81B60] sm:text-xl">
                           {formatBRL(combo.price)}
                         </span>
@@ -1389,9 +1327,9 @@ export default function App() {
           id="agenda"
           className="border-b border-[#D81B60]/15 bg-white py-12 sm:py-14"
         >
-          <div className="mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 lg:px-8">
             <div className="rounded-2xl border border-[#3A150B]/12 bg-[#FFFDFD] p-5 shadow-sm sm:p-8">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="caixa-flex md:items-end md:justify-between">
                 <div>
                   <p className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D81B60]">
                     <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -1465,7 +1403,7 @@ export default function App() {
                 })}
               </ul>
 
-              <div className="mt-5 flex flex-col items-stretch justify-between gap-3 pt-1 sm:flex-row sm:items-center">
+              <div className="caixa-flex mt-5 items-stretch pt-1 md:items-center md:justify-between">
                 <p className="text-xs font-medium text-[#3A150B]/75">
                   Prefere receber em casa ou retirar seu pedido no ponto mais próximo?
                 </p>
@@ -1487,7 +1425,7 @@ export default function App() {
 
         {/* CONTACT SECTION */}
         <section id="contato" className="bg-[#3A140A] py-12 text-white">
-          <div className="mx-auto flex max-w-[1200px] flex-col items-center justify-between gap-6 px-4 text-center sm:px-6 lg:flex-row lg:px-8 lg:text-left">
+          <div className="caixa-flex mx-auto w-full max-w-[1100px] items-center justify-between px-4 text-center sm:px-6 lg:px-8 md:text-left">
             <div>
               <h2 className="font-hand text-3xl font-bold text-white">
                 Delícia da Esther — Bolos e Doces
@@ -1525,7 +1463,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mx-auto mt-8 flex max-w-[1200px] items-center justify-between border-t border-white/10 px-4 pt-5 text-xs text-white/60 sm:px-6 lg:px-8">
+          <div className="mx-auto mt-8 flex w-full max-w-[1100px] items-center justify-between border-t border-white/10 px-4 pt-5 text-xs text-white/60 sm:px-6 lg:px-8">
             <p>© {new Date().getFullYear()} Delícia da Esther — Bolos e Doces</p>
             <button
               type="button"
