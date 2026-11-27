@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import {
   LogOut,
   Plus,
@@ -54,6 +55,7 @@ const CATEGORY_OPTIONS: Exclude<ProductCategory, 'Todos'>[] = [
   'Cupcakes & Potes',
 ];
 
+const AUTO_PRINT_STORAGE_KEY = 'delicia-esther:auto-print';
 const MAX_IMAGE_WIDTH = 600;
 const JPEG_QUALITY = 0.7;
 const MAX_BASE64_LENGTH = 450000;
@@ -151,7 +153,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [orderFilter, setOrderFilter] = useState<OrderFilter>('todos');
-  const [autoPrintEnabled, setAutoPrintEnabled] = useState(false);
+  const [autoPrintEnabled, setAutoPrintEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem(AUTO_PRINT_STORAGE_KEY) !== 'false';
+  });
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [orderActionMessage, setOrderActionMessage] = useState<string | null>(null);
 
@@ -164,8 +169,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const autoPrintedOrderIdsRef = useRef<Set<string>>(new Set());
   const autoPrintedLocalTimesRef = useRef<Map<string, number>>(new Map());
 
+  const printQueueRef = useRef<Order[]>([]);
+  const isPrintingRef = useRef(false);
+  const onRequestPrintOrderRef = useRef(onRequestPrintOrder);
+  onRequestPrintOrderRef.current = onRequestPrintOrder;
+
   useEffect(() => {
     autoPrintEnabledRef.current = autoPrintEnabled;
+    window.localStorage.setItem(AUTO_PRINT_STORAGE_KEY, String(autoPrintEnabled));
   }, [autoPrintEnabled]);
 
   const loadCommercialVoiceUrl = useCallback(async (): Promise<string | null> => {
@@ -278,14 +289,38 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     })();
   }, [loadCommercialVoiceUrl, speakBrowserFallback]);
 
+  // Prints queued receipts one at a time so each new order gets its own coupon,
+  // even when several orders arrive in the same Firestore snapshot.
+  const processPrintQueue = useCallback(() => {
+    if (isPrintingRef.current) return;
+    const nextOrder = printQueueRef.current.shift();
+    if (!nextOrder) return;
+
+    isPrintingRef.current = true;
+    flushSync(() => onRequestPrintOrderRef.current(nextOrder));
+
+    const finishPrint = () => {
+      if (!isPrintingRef.current) return;
+      isPrintingRef.current = false;
+      window.setTimeout(processPrintQueue, 400);
+    };
+
+    window.addEventListener('afterprint', finishPrint, { once: true });
+    window.requestAnimationFrame(() => {
+      window.print();
+      const supportsAfterPrint = 'onafterprint' in window;
+      if (!supportsAfterPrint) {
+        setTimeout(finishPrint, 1500);
+      }
+    });
+  }, []);
+
   const triggerPrintReceipt = useCallback(
     (order: Order) => {
-      onRequestPrintOrder(order);
-      setTimeout(() => {
-        window.print();
-      }, 160);
+      printQueueRef.current.push(order);
+      processPrintQueue();
     },
-    [onRequestPrintOrder]
+    [processPrintQueue]
   );
 
   const handleTestPrint = useCallback(() => {
@@ -398,35 +433,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           playOrderBellChime();
 
           if (autoPrintEnabledRef.current) {
-            const nextOrderToPrint = newlyArrivedNewOrders.find(
-              (o) => !autoPrintedOrderIdsRef.current.has(o.id)
-            );
-            if (nextOrderToPrint) {
+            const ordersToPrint = newlyArrivedNewOrders
+              .filter((o) => !autoPrintedOrderIdsRef.current.has(o.id) && !o.autoPrintedAtMs)
+              .sort((a, b) => a.createdAtMs - b.createdAtMs);
+
+            ordersToPrint.forEach((o) => {
               const printedNowMs = Date.now();
-              newlyArrivedNewOrders.forEach((o) => {
-                if (!autoPrintedOrderIdsRef.current.has(o.id)) {
-                  autoPrintedOrderIdsRef.current.add(o.id);
-                  autoPrintedLocalTimesRef.current.set(o.id, printedNowMs);
-                  void updateDoc(doc(db, 'pedidos', o.id), {
-                    status: 'em_preparo',
-                    autoPrintedAt: serverTimestamp(),
-                    updatedAt: serverTimestamp(),
-                  }).catch((err) => {
-                    try {
-                      handleFirestoreError(err, OperationType.UPDATE, `pedidos/${o.id}`);
-                    } catch (wrapped) {
-                      setFatalError(wrapped as Error);
-                    }
-                  });
+              autoPrintedOrderIdsRef.current.add(o.id);
+              autoPrintedLocalTimesRef.current.set(o.id, printedNowMs);
+              void updateDoc(doc(db, 'pedidos', o.id), {
+                status: 'em_preparo',
+                autoPrintedAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              }).catch((err) => {
+                try {
+                  handleFirestoreError(err, OperationType.UPDATE, `pedidos/${o.id}`);
+                } catch (wrapped) {
+                  setFatalError(wrapped as Error);
                 }
               });
 
               triggerPrintReceipt({
-                ...nextOrderToPrint,
+                ...o,
                 status: 'em_preparo',
                 autoPrintedAtMs: printedNowMs,
               });
-            }
+            });
           }
         }
       },
@@ -726,7 +758,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               }`}
             >
               <ClipboardList className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span>Pedidos / Notificações</span>
+              <span>Pedidos Online</span>
               {pendingOrders.length > 0 && (
                 <span
                   className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-xs font-extrabold tabular-nums ${
