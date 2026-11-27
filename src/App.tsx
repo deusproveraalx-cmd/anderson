@@ -430,7 +430,7 @@ export default function App() {
         <div className="min-h-screen overflow-x-hidden bg-[#FFF0F6] pb-20 text-[#3A150B] lg:pb-0 print:hidden">
       {/* TOP BAR: Dark Chocolate Gradient Bar matching the image */}
       <header className="sticky top-0 z-40 border-b-2 border-[#D99B52]/70 bg-gradient-to-b from-[#4F2012] via-[#3A140A] to-[#491D10] shadow-md">
-        <div className="mx-auto flex h-16 w-full max-w-[1100px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-16 w-full max-w-[1100px] items-center justify-between gap-2 px-5 sm:gap-4 sm:px-6 lg:px-8">
           {/* Top-Left Scalloped Crest Logo */}
           <a
             href="#inicio"
@@ -591,7 +591,7 @@ export default function App() {
             }}
           />
 
-          <div className="relative z-10 mx-auto w-full max-w-[1100px] px-4 pt-6 pb-6 sm:px-6 lg:px-8 lg:pt-8">
+          <div className="relative z-10 mx-auto w-full max-w-[1100px] px-5 pt-6 pb-6 sm:px-6 lg:px-8 lg:pt-8">
             {/* Vitrine Interativa em Destaque (Largura total alinhada) */}
             <div className="flex min-w-0 w-full flex-col justify-between rounded-3xl border-2 border-white/95 bg-white/92 p-4 shadow-[0_14px_34px_rgba(173,20,87,0.16)] backdrop-blur-sm sm:p-6">
               <div className="min-w-0 w-full">
@@ -692,7 +692,7 @@ export default function App() {
                     </button>
                   </div>
                 ) : (
-                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:gap-4">
+                  <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-3">
                     {filteredProducts.slice(0, 6).map((product) => {
                       const isContain =
                         product.category === 'Combos para Festas' || product.category === 'Taças';
@@ -858,7 +858,7 @@ export default function App() {
 
           {/* CURVED CHOCOLATE FOOTER BAR matching the bottom of the image */}
           <div className="relative z-10 mt-4 border-t-2 border-[#D99B52] bg-gradient-to-r from-[#3D150A] via-[#592313] to-[#3D150A] py-3.5 text-white shadow-inner">
-            <div className="caixa-flex mx-auto w-full max-w-[1100px] items-center justify-between px-4 sm:px-6 lg:px-8">
+            <div className="caixa-flex mx-auto w-full max-w-[1100px] items-center justify-between px-5 sm:px-6 lg:px-8">
               <p className="text-center font-hand text-2xl font-bold tracking-wide text-white sm:text-[1.65rem] md:text-left">
                 ♡ Delícia da Esther – Sempre com você! ♡
               </p>
@@ -892,7 +892,7 @@ export default function App() {
 
         {/* INTERACTIVE FULL CATALOG ("Nossos Produtos" - Placed right after Hero for quick product finding) */}
         <section id="produtos" className="bg-[#FFF8FB] py-10 sm:py-14">
-          <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[1100px] px-5 sm:px-6 lg:px-8">
             <div className="caixa-flex md:items-end md:justify-between">
               <div className="flex items-end justify-between gap-3">
                 <div>
@@ -1090,7 +1090,7 @@ export default function App() {
                 })}
               </div>
             ) : (
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 lg:gap-6">
+              <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-3 lg:gap-6">
                 {filteredProducts.map((product) => {
                   const isCombo =
                     product.category === 'Combos para Festas' || product.category === 'Taças';
@@ -1190,7 +1190,7 @@ export default function App() {
 
         {/* COMBOS PARA FESTAS (Exclusively from Firestore 'produtos' with category 'Combos para Festas') */}
         <section id="combos" className="border-t border-[#D81B60]/15 bg-gradient-to-b from-[#FFF0F6] to-[#FFF8FB] py-14">
-          <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[1100px] px-5 sm:px-6 lg:px-8">
             <div className="caixa-flex md:items-end md:justify-between">
               <div>
                 <p className="inline-flex items-center gap-1.5 text-xs font-bold text-[#D81B60]">
@@ -1245,7 +1245,7 @@ export default function App() {
                 </a>
               </div>
             ) : (
-              <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
+              <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-3">
                 {partyCombos.map((combo) => (
                   <article
                     key={combo.id}
@@ -1327,7 +1327,7 @@ export default function App() {
           id="agenda"
           className="border-b border-[#D81B60]/15 bg-white py-12 sm:py-14"
         >
-          <div className="mx-auto w-full max-w-[1100px] px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[1100px] px-5 sm:px-6 lg:px-8">
             <div className="rounded-2xl border border-[#3A150B]/12 bg-[#FFFDFD] p-5 shadow-sm sm:p-8">
               <div className="caixa-flex md:items-end md:justify-between">
                 <div>
@@ -1425,7 +1425,7 @@ export default function App() {
 
         {/* CONTACT SECTION */}
         <section id="contato" className="bg-[#3A140A] py-12 text-white">
-          <div className="caixa-flex mx-auto w-full max-w-[1100px] items-center justify-between px-4 text-center sm:px-6 lg:px-8 md:text-left">
+          <div className="caixa-flex mx-auto w-full max-w-[1100px] items-center justify-between px-5 text-center sm:px-6 lg:px-8 md:text-left">
             <div>
               <h2 className="font-hand text-3xl font-bold text-white">
                 Delícia da Esther — Bolos e Doces
@@ -1463,7 +1463,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mx-auto mt-8 flex w-full max-w-[1100px] items-center justify-between border-t border-white/10 px-4 pt-5 text-xs text-white/60 sm:px-6 lg:px-8">
+          <div className="mx-auto mt-8 flex w-full max-w-[1100px] items-center justify-between border-t border-white/10 px-5 pt-5 text-xs text-white/60 sm:px-6 lg:px-8">
             <p>© {new Date().getFullYear()} Delícia da Esther — Bolos e Doces</p>
             <button
               type="button"
